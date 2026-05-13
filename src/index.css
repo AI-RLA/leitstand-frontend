@@ -1,0 +1,53 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #eef0f4;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --primary: #16a34a;
+  --primary-d: #15803d;
+  --primary-light: #dcfce7;
+  --primary-text: #166534;
+  --amber: #f59e0b;
+  --amber-light: #fef3c7;
+  --red: #ef4444;
+  --red-light: #fee2e2;
+  --blue: #3b82f6;
+  --blue-light: #eff6ff;
+  --t1: #0f172a;
+  --t2: #475569;
+  --t3: #94a3b8;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* MapLibre popup — strip default chrome, use clean card */
+.maplibregl-popup-content {
+  padding: 0 !important;
+  border-radius: 8px !important;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.maplibregl-popup-tip {
+  display: none;
+}
+
+body {
+  margin: 0;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: var(--t1);
+  background: var(--bg);
+}

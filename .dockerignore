@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.omc
+.husky
+*.log
+.env
+.env.local
+.env.production
+.env.*.local
+docker-compose.yaml
