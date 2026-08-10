@@ -4,6 +4,7 @@ import { useFields } from "@/api/fields";
 import { useMissions } from "@/api/missions";
 import { useMissionState, useMissionStates } from "@/ws/missionState";
 import { useFleet } from "@/stores/fleet";
+import { ChatPanel } from "@/features/chat/ChatPanel";
 import { StatusPill } from "@/components/ui/StatusPill";
 import {
   isActiveStatus,
@@ -41,7 +42,7 @@ export function RightRail() {
       </div>
       <div className="flex-1 overflow-y-auto text-ui-md text-t2">
         {tab === "robot" && <RobotTab />}
-        {tab === "ai" && <div className="p-4">Not available.</div>}
+        {tab === "ai" && <ChatPanel />}
         {tab === "missions" && <MissionsTab />}
         {tab === "fields" && <FieldsTab />}
         {tab === "alerts" && <div className="p-4">No alerts.</div>}

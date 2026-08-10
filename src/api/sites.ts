@@ -8,8 +8,12 @@ export function useSites() {
   return useQuery({ queryKey: SITES_KEY, queryFn: api.listSites });
 }
 
-export function useSite(id: string) {
-  return useQuery({ queryKey: siteKey(id), queryFn: () => api.getSite(id) });
+export function useSite(id: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: siteKey(id),
+    queryFn: () => api.getSite(id),
+    enabled: options?.enabled,
+  });
 }
 
 export function useCreateSite() {

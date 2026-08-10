@@ -45,11 +45,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Fields */
-        get: operations["list_fields_api_v1_fields__get"];
+        /**
+         * List Fields
+         * @description List the agricultural fields, each with its name, area in hectares and boundary.
+         */
+        get: operations["list_fields"];
         put?: never;
-        /** Create Field */
-        post: operations["create_field_api_v1_fields__post"];
+        /**
+         * Create Field
+         * @description Create an agricultural field from a name and a GeoJSON polygon boundary.
+         *
+         *     The boundary is normally drawn on the map or imported rather than typed.
+         */
+        post: operations["create_field"];
         delete?: never;
         options?: never;
         head?: never;
@@ -63,16 +71,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Field */
-        get: operations["get_field_api_v1_fields__field_id__get"];
+        /**
+         * Get Field
+         * @description Return one agricultural field's name, area in hectares and boundary.
+         *
+         *     Identify the field by field_id from list_fields, which is also how a field named by the
+         *     operator is resolved.
+         */
+        get: operations["get_field"];
         put?: never;
         post?: never;
-        /** Delete Field */
-        delete: operations["delete_field_api_v1_fields__field_id__delete"];
+        /**
+         * Delete Field
+         * @description Delete a field permanently. Identify it by field_id from list_fields.
+         */
+        delete: operations["delete_field"];
         options?: never;
         head?: never;
-        /** Update Field */
-        patch: operations["update_field_api_v1_fields__field_id__patch"];
+        /**
+         * Update Field
+         * @description Change a field's name, notes, or boundary. Identify it by field_id from list_fields.
+         */
+        patch: operations["update_field"];
         trace?: never;
     };
     "/api/v1/robots": {
@@ -82,8 +102,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Robots */
-        get: operations["list_robots_api_v1_robots_get"];
+        /**
+         * List Robots
+         * @description List every robot in the fleet with its live status, battery, connectivity and position.
+         *
+         *     Status is one of offline, charging, active or idle. Use this to answer questions about the
+         *     whole fleet; prefer get_robot when a single robot id is already known.
+         */
+        get: operations["list_robots"];
         put?: never;
         post?: never;
         delete?: never;
@@ -99,8 +125,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Robot */
-        get: operations["get_robot_api_v1_robots__robot_id__get"];
+        /**
+         * Get Robot
+         * @description Return one robot's live status, battery, connectivity and position by its id.
+         */
+        get: operations["get_robot"];
         put?: never;
         post?: never;
         delete?: never;
@@ -118,12 +147,29 @@ export interface paths {
         };
         /**
          * List Missions
-         * @description List missions, newest first, optionally filtered to one robot's missions.
+         * @description List missions newest first, each with its lifecycle status and assigned robot.
+         *
+         *     Status is one of DRAFT, ASSIGNED, DISPATCHED, RUNNING, PAUSED, SUCCEEDED, FAILED or
+         *     CANCELLED. Optionally filter by robot, by name, or both. This returns mission definitions and
+         *     status, not live per-stage progress: use get_mission_state for that.
          */
-        get: operations["list_missions_api_v1_missions__get"];
+        get: operations["list_missions"];
         put?: never;
-        /** Create Mission */
-        post: operations["create_mission_api_v1_missions__post"];
+        /**
+         * Create Mission
+         * @description Create a mission from a name and an ordered list of navigation stages.
+         *
+         *     Every waypoint must be a coordinate the operator stated. Do not compute one: not from a field
+         *     or site boundary, not from a robot's current position, and not by converting a distance in
+         *     metres into degrees. If you were given an area, a row spacing or a bearing rather than
+         *     coordinates, do not call this; say you cannot work them out and ask for them.
+         *
+         *     ``stages`` is a list of stage objects, not text containing a list.
+         *
+         *     The backend assigns the mission and stage ids. The mission is created as a draft and is not
+         *     dispatched.
+         */
+        post: operations["create_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -137,16 +183,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Mission */
-        get: operations["get_mission_api_v1_missions__mission_id__get"];
+        /**
+         * Get Mission
+         * @description Return one mission's definition, lifecycle status and assigned robot.
+         *
+         *     Identify the mission by mission_id from list_missions, which is also how a mission named by
+         *     the operator is resolved.
+         */
+        get: operations["get_mission"];
         put?: never;
         post?: never;
-        /** Delete Mission */
-        delete: operations["delete_mission_api_v1_missions__mission_id__delete"];
+        /**
+         * Delete Mission
+         * @description Delete a mission permanently.
+         *
+         *     Only a draft or already-finished mission can be deleted, and this cannot be undone. Identify
+         *     the mission by mission_id from list_missions.
+         */
+        delete: operations["delete_mission"];
         options?: never;
         head?: never;
-        /** Update Mission */
-        patch: operations["update_mission_api_v1_missions__mission_id__patch"];
+        /**
+         * Update Mission
+         * @description Change a draft mission's name, description, or stages.
+         *
+         *     Only a mission still in DRAFT can be updated. Identify it by mission_id from list_missions.
+         *     Supplying stages replaces the existing ones.
+         */
+        patch: operations["update_mission"];
         trace?: never;
     };
     "/api/v1/missions/{mission_id}/state": {
@@ -158,9 +222,12 @@ export interface paths {
         };
         /**
          * Get Mission State
-         * @description Return the mission's per-stage runtime state, with errors attributed per stage.
+         * @description Return live per-stage progress for one mission, with errors attributed per stage.
+         *
+         *     Each stage carries a status and a progress fraction. Use this to answer how far along a
+         *     mission is, or why it failed. Identify the mission by mission_id from list_missions.
          */
-        get: operations["get_mission_state_api_v1_missions__mission_id__state_get"];
+        get: operations["get_mission_state"];
         put?: never;
         post?: never;
         delete?: never;
@@ -178,8 +245,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Assign Mission */
-        post: operations["assign_mission_api_v1_missions__mission_id__assign_post"];
+        /**
+         * Assign Mission
+         * @description Assign a mission to a robot, readying it for dispatch without starting it.
+         *
+         *     Identify the mission by mission_id and give the robot_id. To also start it, use
+         *     dispatch_mission instead.
+         */
+        post: operations["assign_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -195,8 +268,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Unassign Mission */
-        post: operations["unassign_mission_api_v1_missions__mission_id__unassign_post"];
+        /**
+         * Unassign Mission
+         * @description Remove the robot assignment from a mission that has not yet been dispatched.
+         *
+         *     Identify the mission by mission_id.
+         */
+        post: operations["unassign_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -212,8 +290,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Dispatch Mission */
-        post: operations["dispatch_mission_api_v1_missions__mission_id__dispatch_post"];
+        /**
+         * Dispatch Mission
+         * @description Dispatch a mission to a robot and start it driving.
+         *
+         *     Sends the mission to its assigned robot, or to ``robot_id`` when given, and begins execution.
+         *     The mission must be in DRAFT or ASSIGNED; identify it by ``mission_id`` from list_missions.
+         */
+        post: operations["dispatch_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -229,8 +313,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel Mission */
-        post: operations["cancel_mission_api_v1_missions__mission_id__cancel_post"];
+        /**
+         * Cancel Mission
+         * @description Cancel a mission, stopping the robot if it is running.
+         *
+         *     Identify it by mission_id from list_missions.
+         */
+        post: operations["cancel_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -246,8 +335,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pause Mission */
-        post: operations["pause_mission_api_v1_missions__mission_id__pause_post"];
+        /**
+         * Pause Mission
+         * @description Pause a running mission, holding the robot in place.
+         *
+         *     Identify the mission by mission_id. Use resume_mission to continue it.
+         */
+        post: operations["pause_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -263,8 +357,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume Mission */
-        post: operations["resume_mission_api_v1_missions__mission_id__resume_post"];
+        /**
+         * Resume Mission
+         * @description Resume a paused mission, letting the robot continue.
+         *
+         *     Identify it by mission_id.
+         */
+        post: operations["resume_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -280,8 +379,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reset Mission */
-        post: operations["reset_mission_api_v1_missions__mission_id__reset_post"];
+        /**
+         * Reset Mission
+         * @description Return a failed or cancelled mission to draft so it can be edited and dispatched again.
+         *
+         *     Identify the mission by mission_id.
+         */
+        post: operations["reset_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -295,11 +399,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Sites */
-        get: operations["list_sites_api_v1_sites__get"];
+        /**
+         * List Sites
+         * @description List the sites, each a named local frame with its anchor position and map reference.
+         */
+        get: operations["list_sites"];
         put?: never;
-        /** Create Site */
-        post: operations["create_site_api_v1_sites__post"];
+        /**
+         * Create Site
+         * @description Create a site: a named local frame anchored at a GNSS position with a Nav2 map reference.
+         */
+        post: operations["create_site"];
         delete?: never;
         options?: never;
         head?: never;
@@ -313,16 +423,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Site */
-        get: operations["get_site_api_v1_sites__site_id__get"];
+        /**
+         * Get Site
+         * @description Return one site's name, anchor position and map reference by its id.
+         */
+        get: operations["get_site"];
         put?: never;
         post?: never;
-        /** Delete Site */
-        delete: operations["delete_site_api_v1_sites__site_id__delete"];
+        /**
+         * Delete Site
+         * @description Delete a site. Fails if any mission still references it. Identify it by site_id.
+         */
+        delete: operations["delete_site"];
         options?: never;
         head?: never;
-        /** Update Site */
-        patch: operations["update_site_api_v1_sites__site_id__patch"];
+        /**
+         * Update Site
+         * @description Change a site's name, anchor position, or map reference. Identify it by site_id.
+         */
+        patch: operations["update_site"];
         trace?: never;
     };
     "/api/v1/users/me": {
@@ -336,6 +455,34 @@ export interface paths {
         get: operations["me_api_v1_users_me_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat
+         * @description Run one assistant turn and stream it as a Vercel AI UI message stream.
+         *
+         *     The caller owns the conversation and sends the whole history every turn; no transcript is
+         *     stored, so there is nothing to restore from this side.
+         *
+         *     Proposed actions never execute on their own: they arrive as tool-approval chunks and pause the
+         *     turn, and the caller returns a decision with the next request. A decision takes effect only
+         *     where it matches a proposal this server recorded, and only once, so resending one or changing
+         *     the action it names actuates nothing.
+         */
+        post: operations["chat"];
         delete?: never;
         options?: never;
         head?: never;
@@ -445,7 +592,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Stages */
-            stages: components["schemas"]["NavigationStage-Input"][];
+            stages: components["schemas"]["NavigationStageInput"][];
         };
         /** MissionDispatchBody */
         MissionDispatchBody: {
@@ -498,7 +645,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Stages */
-            stages?: components["schemas"]["NavigationStage-Input"][] | null;
+            stages?: components["schemas"]["NavigationStageInput"][] | null;
         };
         /** MissionView */
         MissionView: {
@@ -514,7 +661,7 @@ export interface components {
             /** Description */
             description: string | null;
             /** Stages */
-            stages: components["schemas"]["NavigationStage-Output"][];
+            stages: components["schemas"]["NavigationStage"][];
             status: components["schemas"]["MissionStatus"];
             /** Robot Id */
             robot_id: string | null;
@@ -537,7 +684,7 @@ export interface components {
          * NavigationStage
          * @description Drive the robot through an ordered list of waypoints.
          */
-        "NavigationStage-Input": {
+        NavigationStage: {
             /**
              * Stage Id
              * Format: uuid
@@ -547,7 +694,7 @@ export interface components {
              * On Cancel
              * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
              */
-            on_cancel?: components["schemas"]["NavigationStage-Input"][] | null;
+            on_cancel?: components["schemas"]["NavigationStage"][] | null;
             /**
              * Kind
              * @default navigation
@@ -561,20 +708,14 @@ export interface components {
             waypoints: (components["schemas"]["WGS84Waypoint"] | components["schemas"]["SiteLocalWaypoint"])[];
         };
         /**
-         * NavigationStage
-         * @description Drive the robot through an ordered list of waypoints.
+         * NavigationStageInput
+         * @description Drive the robot through an ordered list of waypoints, as requested by a caller.
+         *
+         *     Identity is deliberately absent, and that is the point: ``stage_id`` is assigned by the
+         *     backend, so no caller can choose one. Two stages sharing an id would collapse onto a single
+         *     ``mission_stage_state`` row, leaving the robot's per-stage reports unattributable.
          */
-        "NavigationStage-Output": {
-            /**
-             * Stage Id
-             * Format: uuid
-             */
-            stage_id: string;
-            /**
-             * On Cancel
-             * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
-             */
-            on_cancel?: components["schemas"]["NavigationStage-Output"][] | null;
+        NavigationStageInput: {
             /**
              * Kind
              * @default navigation
@@ -586,6 +727,11 @@ export interface components {
              * @description Ordered waypoints to traverse. All waypoints in one stage must share their ``kind`` (homogeneity); this is enforced by the backend at dispatch, not by this schema.
              */
             waypoints: (components["schemas"]["WGS84Waypoint"] | components["schemas"]["SiteLocalWaypoint"])[];
+            /**
+             * On Cancel
+             * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
+             */
+            on_cancel?: components["schemas"]["NavigationStageInput"][] | null;
         };
         /**
          * Polygon
@@ -899,7 +1045,7 @@ export interface operations {
             };
         };
     };
-    list_fields_api_v1_fields__get: {
+    list_fields: {
         parameters: {
             query?: never;
             header?: never;
@@ -919,7 +1065,7 @@ export interface operations {
             };
         };
     };
-    create_field_api_v1_fields__post: {
+    create_field: {
         parameters: {
             query?: never;
             header?: never;
@@ -952,7 +1098,7 @@ export interface operations {
             };
         };
     };
-    get_field_api_v1_fields__field_id__get: {
+    get_field: {
         parameters: {
             query?: never;
             header?: never;
@@ -983,7 +1129,7 @@ export interface operations {
             };
         };
     };
-    delete_field_api_v1_fields__field_id__delete: {
+    delete_field: {
         parameters: {
             query?: never;
             header?: never;
@@ -1012,7 +1158,7 @@ export interface operations {
             };
         };
     };
-    update_field_api_v1_fields__field_id__patch: {
+    update_field: {
         parameters: {
             query?: never;
             header?: never;
@@ -1047,7 +1193,7 @@ export interface operations {
             };
         };
     };
-    list_robots_api_v1_robots_get: {
+    list_robots: {
         parameters: {
             query?: never;
             header?: never;
@@ -1067,7 +1213,7 @@ export interface operations {
             };
         };
     };
-    get_robot_api_v1_robots__robot_id__get: {
+    get_robot: {
         parameters: {
             query?: never;
             header?: never;
@@ -1098,11 +1244,13 @@ export interface operations {
             };
         };
     };
-    list_missions_api_v1_missions__get: {
+    list_missions: {
         parameters: {
             query?: {
                 /** @description Filter to missions assigned to this robot id. */
                 robot?: string | null;
+                /** @description Filter to missions with exactly this name, matched case-insensitively. */
+                name?: string | null;
             };
             header?: never;
             path?: never;
@@ -1130,7 +1278,7 @@ export interface operations {
             };
         };
     };
-    create_mission_api_v1_missions__post: {
+    create_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1163,7 +1311,7 @@ export interface operations {
             };
         };
     };
-    get_mission_api_v1_missions__mission_id__get: {
+    get_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1194,7 +1342,7 @@ export interface operations {
             };
         };
     };
-    delete_mission_api_v1_missions__mission_id__delete: {
+    delete_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1223,7 +1371,7 @@ export interface operations {
             };
         };
     };
-    update_mission_api_v1_missions__mission_id__patch: {
+    update_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1258,7 +1406,7 @@ export interface operations {
             };
         };
     };
-    get_mission_state_api_v1_missions__mission_id__state_get: {
+    get_mission_state: {
         parameters: {
             query?: never;
             header?: never;
@@ -1289,7 +1437,7 @@ export interface operations {
             };
         };
     };
-    assign_mission_api_v1_missions__mission_id__assign_post: {
+    assign_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1324,7 +1472,7 @@ export interface operations {
             };
         };
     };
-    unassign_mission_api_v1_missions__mission_id__unassign_post: {
+    unassign_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1355,7 +1503,7 @@ export interface operations {
             };
         };
     };
-    dispatch_mission_api_v1_missions__mission_id__dispatch_post: {
+    dispatch_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1390,7 +1538,7 @@ export interface operations {
             };
         };
     };
-    cancel_mission_api_v1_missions__mission_id__cancel_post: {
+    cancel_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1421,7 +1569,7 @@ export interface operations {
             };
         };
     };
-    pause_mission_api_v1_missions__mission_id__pause_post: {
+    pause_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1452,7 +1600,7 @@ export interface operations {
             };
         };
     };
-    resume_mission_api_v1_missions__mission_id__resume_post: {
+    resume_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1483,7 +1631,7 @@ export interface operations {
             };
         };
     };
-    reset_mission_api_v1_missions__mission_id__reset_post: {
+    reset_mission: {
         parameters: {
             query?: never;
             header?: never;
@@ -1514,7 +1662,7 @@ export interface operations {
             };
         };
     };
-    list_sites_api_v1_sites__get: {
+    list_sites: {
         parameters: {
             query?: never;
             header?: never;
@@ -1534,7 +1682,7 @@ export interface operations {
             };
         };
     };
-    create_site_api_v1_sites__post: {
+    create_site: {
         parameters: {
             query?: never;
             header?: never;
@@ -1567,7 +1715,7 @@ export interface operations {
             };
         };
     };
-    get_site_api_v1_sites__site_id__get: {
+    get_site: {
         parameters: {
             query?: never;
             header?: never;
@@ -1598,7 +1746,7 @@ export interface operations {
             };
         };
     };
-    delete_site_api_v1_sites__site_id__delete: {
+    delete_site: {
         parameters: {
             query?: never;
             header?: never;
@@ -1627,7 +1775,7 @@ export interface operations {
             };
         };
     };
-    update_site_api_v1_sites__site_id__patch: {
+    update_site: {
         parameters: {
             query?: never;
             header?: never;
@@ -1678,6 +1826,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+        };
+    };
+    chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

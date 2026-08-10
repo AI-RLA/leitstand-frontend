@@ -13,11 +13,15 @@ export function useMissions() {
   return useQuery({ queryKey: MISSIONS_KEY, queryFn: api.listMissions });
 }
 
-export function useMission(id: string, options?: { refetchInterval?: number }) {
+export function useMission(
+  id: string,
+  options?: { refetchInterval?: number; enabled?: boolean },
+) {
   return useQuery({
     queryKey: missionKey(id),
     queryFn: () => api.getMission(id),
     refetchInterval: options?.refetchInterval,
+    enabled: options?.enabled,
   });
 }
 

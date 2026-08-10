@@ -1,3 +1,4 @@
+import { authHeaders } from "./auth";
 import type { components } from "./generated";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
@@ -40,7 +41,11 @@ export function apiErrorMessage(error: unknown): string {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(init.headers ?? {}),
+    },
     ...init,
   });
   if (!res.ok) throw new ApiError(res.status, await res.text());
@@ -66,7 +71,7 @@ export type StageStateView = components["schemas"]["StageStateView"];
 export type StageStatus = components["schemas"]["StageStatus"];
 export type MissionError = components["schemas"]["MissionError"];
 export type NavigationStageInput =
-  components["schemas"]["NavigationStage-Input"];
+  components["schemas"]["NavigationStageInput"];
 export type SiteLocalWaypoint = components["schemas"]["SiteLocalWaypoint"];
 export type Site = components["schemas"]["SiteView"];
 export type SiteCreate = components["schemas"]["SiteCreate"];

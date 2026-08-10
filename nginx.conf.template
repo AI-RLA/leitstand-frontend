@@ -27,6 +27,26 @@ server {
     return 200 "ok\n";
   }
 
+  # Chat is the one server-sent-event stream under /api/, and the
+  # defaults are wrong for it in two ways: buffering holds tokens
+  # back until a buffer fills, so an answer that streams over
+  # seconds arrives all at once and reads as a hang, and the 60s
+  # read timeout would cut a slow turn mid-answer. An exact-match
+  # location wins over the /api/ prefix below, so only this route
+  # is affected. Neither shows up in dev, where Vite proxies
+  # straight through.
+  location = /api/v1/chat {
+    proxy_pass ${BACKEND_URL};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 300s;
+  }
+
   # proxy_pass has NO trailing slash on purpose: with one, nginx
   # would strip the /api/ location prefix from the upstream URI.
   location /api/ {

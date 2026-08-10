@@ -8,8 +8,12 @@ export function useFields() {
   return useQuery({ queryKey: FIELDS_KEY, queryFn: api.listFields });
 }
 
-export function useField(id: string) {
-  return useQuery({ queryKey: fieldKey(id), queryFn: () => api.getField(id) });
+export function useField(id: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: fieldKey(id),
+    queryFn: () => api.getField(id),
+    enabled: options?.enabled,
+  });
 }
 
 export function useCreateField() {

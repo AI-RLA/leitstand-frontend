@@ -1,3 +1,4 @@
+import { wsSubprotocols } from "@/api/auth";
 import type { Battery, Pose, RobotStatus } from "@/api/client";
 import { useFleet } from "@/stores/fleet";
 
@@ -104,7 +105,7 @@ export function connectWs(): WsHandle {
   function connect(): void {
     attempts += 1;
     console.info(`[ws] connecting… (attempt ${attempts})`);
-    ws = new WebSocket(resolveUrl());
+    ws = new WebSocket(resolveUrl(), wsSubprotocols());
 
     ws.addEventListener("open", () => {
       reconnectAfter = 500;

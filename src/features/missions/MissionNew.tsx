@@ -219,7 +219,6 @@ export function MissionNew() {
     if (!canSubmit) return;
 
     const builtStages: NavigationStageInput[] = stages.map((s) => ({
-      stage_id: crypto.randomUUID(),
       kind: "navigation" as const,
       waypoints:
         s.frame === "wgs84"
