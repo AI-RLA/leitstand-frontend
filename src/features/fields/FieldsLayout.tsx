@@ -1,15 +1,20 @@
+import { useState } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useFields } from "@/api/fields";
+import { ResizablePane } from "@/components/ui/ResizablePane";
 import { FieldsMap } from "./FieldsMap";
 
 export function FieldsLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const isDrawing = path === "/fields/new" || path.endsWith("/edit");
 
-  // Extract selected field ID from path, e.g. /fields/<uuid>
   const fieldIdMatch = path.match(/^\/fields\/([^/]+)$/);
   const selectedFieldId =
     fieldIdMatch && fieldIdMatch[1] !== "new" ? fieldIdMatch[1] : null;
+
+  const [leftDragging, setLeftDragging] = useState(false);
+  const [rightDragging, setRightDragging] = useState(false);
+  const isDragging = leftDragging || rightDragging;
 
   if (isDrawing) {
     return (
@@ -21,16 +26,35 @@ export function FieldsLayout() {
 
   return (
     <div className="h-full flex overflow-hidden">
-      <FieldSidebar />
+      <ResizablePane
+        paneId="fields-list"
+        side="left"
+        initial={220}
+        min={180}
+        max={360}
+        onDragStateChange={setLeftDragging}
+      >
+        <FieldSidebar />
+      </ResizablePane>
       <div className="flex-1 flex overflow-hidden">
-        {/* Map panel */}
-        <div className="relative flex-1 min-w-0">
+        <div
+          className="relative flex-1 min-w-0"
+          style={isDragging ? { pointerEvents: "none" } : undefined}
+        >
           <FieldsMap selectedFieldId={selectedFieldId} />
         </div>
-        {/* Detail / empty-state panel */}
-        <div className="w-[380px] shrink-0 overflow-y-auto bg-[#F8FAFC] border-l border-border">
-          <Outlet />
-        </div>
+        <ResizablePane
+          paneId="fields-detail"
+          side="right"
+          initial={380}
+          min={280}
+          max={520}
+          onDragStateChange={setRightDragging}
+        >
+          <div className="h-full overflow-y-auto bg-[#F8FAFC] border-l border-border">
+            <Outlet />
+          </div>
+        </ResizablePane>
       </div>
     </div>
   );
@@ -41,7 +65,7 @@ function FieldSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   return (
-    <aside className="w-[220px] bg-white border-r border-border flex flex-col">
+    <aside className="h-full bg-white border-r border-border flex flex-col">
       <div className="px-3 py-3 border-b border-border flex items-center justify-between">
         <span className="text-ui-sm uppercase tracking-wider text-t3 font-semibold">
           Fields ({fields?.length ?? 0})
@@ -80,7 +104,7 @@ function FieldSidebar() {
                   {f.name}
                 </span>
                 <span className="text-ui-xs text-t3 tabular-nums shrink-0">
-                  {f.area_ha.toFixed(1)} ha
+                  {(f.area_ha ?? 0).toFixed(1)} ha
                 </span>
               </div>
             </Link>

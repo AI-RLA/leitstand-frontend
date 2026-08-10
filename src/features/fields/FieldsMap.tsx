@@ -78,9 +78,7 @@ export function FieldsMap({ selectedFieldId }: Props) {
           ...MAP_SOURCES,
           fields: {
             type: "geojson",
-            data: toFieldGeoJSON(
-              fieldsRef.current,
-            ) as unknown as GeoJSON.FeatureCollection,
+            data: toFieldGeoJSON(fieldsRef.current),
             promoteId: "id",
           },
         },
@@ -144,9 +142,7 @@ export function FieldsMap({ selectedFieldId }: Props) {
       | maplibregl.GeoJSONSource
       | undefined;
     if (!source) return;
-    source.setData(
-      toFieldGeoJSON(fields ?? []) as unknown as GeoJSON.FeatureCollection,
-    );
+    source.setData(toFieldGeoJSON(fields ?? []));
     const id = selectedFieldIdRef.current;
     if (!id) return;
     map.setFeatureState({ source: "fields", id }, { selected: true });

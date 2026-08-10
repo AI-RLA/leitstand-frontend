@@ -20,15 +20,11 @@ export function RobotListItem({
   onClick,
   onDoubleClick,
 }: Props) {
-  const opStatus = robot.state?.status ?? "idle";
-  const task = robot.online ? (robot.state?.task ?? "") : "";
+  const opStatus = robot.status ?? "unknown";
   const batteryPct = robot.battery?.battery_pct ?? null;
-  const badge = robot.online
-    ? (STATUS_COLORS[opStatus] ?? STATUS_COLORS.idle)
-    : STATUS_COLORS.offline;
-  const displayStatus = robot.online ? opStatus : "offline";
+  const badge = STATUS_COLORS[opStatus] ?? STATUS_COLORS.offline;
   const lastSeen = !robot.online
-    ? latestTs(robot.state?.ts, robot.battery?.ts, robot.pose?.ts)
+    ? latestTs(robot.battery?.ts, robot.pose?.ts)
     : null;
 
   return (
@@ -53,12 +49,12 @@ export function RobotListItem({
           }}
         />
         <span className="text-ui-md font-semibold text-t1">{robot.id}</span>
-        <span className="text-ui-xs text-t2 truncate flex-1">{task}</span>
+        <span className="flex-1" />
         <span
           className="text-ui-sm font-medium rounded-full px-2 py-[1px]"
           style={{ background: badge.bg, color: badge.text }}
         >
-          {displayStatus}
+          {opStatus}
         </span>
       </div>
       <div className="mt-1 flex items-center gap-2">

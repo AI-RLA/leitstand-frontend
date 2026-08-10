@@ -20,11 +20,11 @@ export function fieldBbox(geometry: {
   ];
 }
 
-export function toFieldGeoJSON(fields: Field[]) {
+export function toFieldGeoJSON(fields: Field[]): GeoJSON.FeatureCollection {
   return {
-    type: "FeatureCollection" as const,
+    type: "FeatureCollection",
     features: fields.map((f) => ({
-      type: "Feature" as const,
+      type: "Feature",
       id: f.id,
       properties: {
         id: f.id,
@@ -32,7 +32,9 @@ export function toFieldGeoJSON(fields: Field[]) {
         area_ha: f.area_ha,
         notes: f.notes,
       },
-      geometry: f.geometry,
+      // Field.geometry is the wire (openapi) polygon shape; assert once here so
+      // callers get a properly-typed FeatureCollection without per-call casts.
+      geometry: f.geometry as GeoJSON.Geometry,
     })),
   };
 }

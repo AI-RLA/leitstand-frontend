@@ -68,7 +68,7 @@ export function BasemapControl({ mapRef }: Props) {
         </button>
         {layerOpen && (
           <div className="absolute right-0 top-8 min-w-[168px] rounded-lg border border-slate-100 bg-white py-1 shadow-xl">
-            <div className="px-3 pb-1 pt-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+            <div className="px-3 pb-1 pt-1.5 text-ui-xs font-semibold uppercase tracking-wider text-slate-400">
               Basemap
             </div>
             {(["osm", "dop"] as const).map((id) => (
@@ -96,7 +96,7 @@ export function BasemapControl({ mapRef }: Props) {
                   )}
                 </span>
                 <span
-                  className={`text-[12px] font-medium ${basemap === id ? "text-primary" : "text-slate-700"}`}
+                  className={`text-ui-sm font-medium ${basemap === id ? "text-primary" : "text-slate-700"}`}
                 >
                   {id === "osm" ? "OpenStreetMap" : "LGLN DOP20"}
                 </span>

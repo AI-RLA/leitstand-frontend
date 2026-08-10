@@ -1,12 +1,12 @@
 import { create } from "zustand";
-import type { Battery, Pose, RobotStateData } from "@/api/client";
+import type { Battery, Pose, RobotStatus } from "@/api/client";
 
 export type RobotEntry = {
   id: string;
   online: boolean;
   pose: Pose | null;
   battery: Battery | null;
-  state: RobotStateData | null;
+  status: RobotStatus | null;
 };
 
 export type RightRailTab = "robot" | "ai" | "missions" | "fields" | "alerts";
@@ -22,7 +22,7 @@ type Store = {
   setOnline: (id: string, online: boolean) => void;
   setPose: (id: string, pose: Pose) => void;
   setBattery: (id: string, battery: Battery) => void;
-  setState: (id: string, state: RobotStateData) => void;
+  setStatus: (id: string, status: RobotStatus) => void;
   select: (id: string | null) => void;
   selectField: (id: string | null) => void;
   flyTo: (robotId: string) => void;
@@ -60,7 +60,13 @@ function saveTab(tab: RightRailTab) {
 
 const ensure = (entries: Record<string, RobotEntry>, id: string) => {
   if (!entries[id]) {
-    entries[id] = { id, online: false, pose: null, battery: null, state: null };
+    entries[id] = {
+      id,
+      online: false,
+      pose: null,
+      battery: null,
+      status: null,
+    };
   }
   return entries[id];
 };
@@ -91,10 +97,10 @@ export const useFleet = create<Store>((set) => ({
       ensure(r, id).battery = battery;
       return { robots: r };
     }),
-  setState: (id, state) =>
+  setStatus: (id, status) =>
     set((s) => {
       const r = { ...s.robots };
-      ensure(r, id).state = state;
+      ensure(r, id).status = status;
       return { robots: r };
     }),
   select: (id) => {

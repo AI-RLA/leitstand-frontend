@@ -13,6 +13,13 @@ import { FieldsLayout } from "./features/fields/FieldsLayout";
 import { FieldDraw } from "./features/fields/FieldDraw";
 import { FieldEdit } from "./features/fields/FieldEdit";
 import { FieldDetail } from "./features/fields/FieldDetail";
+import { MissionsLayout } from "./features/missions/MissionsLayout";
+import { MissionDetail } from "./features/missions/MissionDetail";
+import { MissionEdit } from "./features/missions/MissionEdit";
+import { MissionNew } from "./features/missions/MissionNew";
+import { SitesLayout } from "./features/sites/SitesLayout";
+import { SiteDetail } from "./features/sites/SiteDetail";
+import { SiteNew } from "./features/sites/SiteNew";
 import "./index.css";
 
 const rootRoute = createRootRoute({ component: RootLayout });
@@ -33,7 +40,7 @@ const fieldIndexRoute = createRoute({
   getParentRoute: () => fieldsRoute,
   path: "/",
   component: () => (
-    <div className="flex items-center justify-center h-full text-[13px] text-t3">
+    <div className="flex items-center justify-center h-full text-ui-md text-t3">
       Select a field or create one.
     </div>
   ),
@@ -63,6 +70,77 @@ const fieldEditRoute = createRoute({
   },
 });
 
+const missionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/missions",
+  component: MissionsLayout,
+});
+
+const missionIndexRoute = createRoute({
+  getParentRoute: () => missionsRoute,
+  path: "/",
+  component: () => (
+    <div className="flex items-center justify-center h-full text-ui-md text-t3">
+      Select a mission or create one.
+    </div>
+  ),
+});
+
+const missionNewRoute = createRoute({
+  getParentRoute: () => missionsRoute,
+  path: "/new",
+  component: MissionNew,
+});
+
+const missionDetailRoute = createRoute({
+  getParentRoute: () => missionsRoute,
+  path: "/$id",
+  component: () => {
+    const { id } = missionDetailRoute.useParams();
+    return <MissionDetail id={id} />;
+  },
+});
+
+const missionEditRoute = createRoute({
+  getParentRoute: () => missionsRoute,
+  path: "/$id/edit",
+  component: () => {
+    const { id } = missionEditRoute.useParams();
+    return <MissionEdit id={id} />;
+  },
+});
+
+const sitesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sites",
+  component: SitesLayout,
+});
+
+const siteIndexRoute = createRoute({
+  getParentRoute: () => sitesRoute,
+  path: "/",
+  component: () => (
+    <div className="flex items-center justify-center h-full text-ui-md text-t3">
+      Select a site or create one.
+    </div>
+  ),
+});
+
+const siteNewRoute = createRoute({
+  getParentRoute: () => sitesRoute,
+  path: "/new",
+  component: SiteNew,
+});
+
+const siteDetailRoute = createRoute({
+  getParentRoute: () => sitesRoute,
+  path: "/$id",
+  component: () => {
+    const { id } = siteDetailRoute.useParams();
+    return <SiteDetail id={id} />;
+  },
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   fieldsRoute.addChildren([
@@ -71,9 +149,39 @@ const routeTree = rootRoute.addChildren([
     fieldDetailRoute,
     fieldEditRoute,
   ]),
+  missionsRoute.addChildren([
+    missionIndexRoute,
+    missionNewRoute,
+    missionDetailRoute,
+    missionEditRoute,
+  ]),
+  sitesRoute.addChildren([siteIndexRoute, siteNewRoute, siteDetailRoute]),
 ]);
-const router = createRouter({ routeTree });
-const queryClient = new QueryClient();
+const router = createRouter({
+  routeTree,
+  // Route-level error boundary: a render error in a route subtree shows this
+  // instead of white-screening the whole app.
+  defaultErrorComponent: ({ error }) => (
+    <div className="p-6">
+      <p className="text-ui-sm font-semibold text-t1 mb-1">
+        Something went wrong.
+      </p>
+      <p className="text-ui-sm text-t3">
+        {error instanceof Error ? error.message : String(error)}
+      </p>
+    </div>
+  ),
+});
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Fleet data is WS-driven; avoid refetch storms and noisy focus refetches.
+      staleTime: 5_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 declare module "@tanstack/react-router" {
   interface Register {
