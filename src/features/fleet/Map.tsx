@@ -37,7 +37,7 @@ function buildFieldPopupEl(field: Field): HTMLElement {
   const area = document.createElement("div");
   area.style.cssText =
     "font-size:18px;font-weight:700;color:#15803D;line-height:1;margin-bottom:2px;";
-  area.textContent = field.area_ha.toFixed(2);
+  area.textContent = (field.area_ha ?? 0).toFixed(2);
   const areaUnit = document.createElement("span");
   areaUnit.style.cssText =
     "font-size:11px;font-weight:500;color:#64748B;margin-left:3px;";
@@ -82,7 +82,7 @@ function syncMarkers(
     if (!r.pose) continue;
     seen.add(r.id);
     const color = r.online
-      ? (MARKER_COLOR[r.state?.status ?? "idle"] ?? "#94A3B8")
+      ? (MARKER_COLOR[r.status ?? "idle"] ?? "#94A3B8")
       : MARKER_COLOR.offline;
 
     let m = markersRecord[r.id];
@@ -268,9 +268,7 @@ export function FleetMap() {
           ...MAP_SOURCES,
           fields: {
             type: "geojson",
-            data: toFieldGeoJSON(
-              fieldsRef.current,
-            ) as unknown as GeoJSON.FeatureCollection,
+            data: toFieldGeoJSON(fieldsRef.current),
             promoteId: "id",
           },
         },
@@ -356,9 +354,7 @@ export function FleetMap() {
       | maplibregl.GeoJSONSource
       | undefined;
     if (!source) return;
-    source.setData(
-      toFieldGeoJSON(fields ?? []) as unknown as GeoJSON.FeatureCollection,
-    );
+    source.setData(toFieldGeoJSON(fields ?? []));
     const id = useFleet.getState().selectedFieldId;
     if (id) map.setFeatureState({ source: "fields", id }, { selected: true });
   }, [fields]);

@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useFields } from "@/api/fields";
+import { useMissions } from "@/api/missions";
+import { useMissionState, useMissionStates } from "@/ws/missionState";
 import { useFleet } from "@/stores/fleet";
+import { StatusPill } from "@/components/ui/StatusPill";
+import {
+  isActiveStatus,
+  toMissionViewModel,
+} from "@/features/missions/adapters";
+import type { Mission, MissionState } from "@/api/client";
 import {
   STATUS_COLORS,
   batteryColor,
@@ -34,17 +42,7 @@ export function RightRail() {
       <div className="flex-1 overflow-y-auto text-ui-md text-t2">
         {tab === "robot" && <RobotTab />}
         {tab === "ai" && <div className="p-4">Not available.</div>}
-        {tab === "missions" && (
-          <div className="p-4">
-            <button
-              disabled
-              className="w-full h-10 rounded bg-primary text-white text-ui-md font-semibold opacity-50 cursor-not-allowed"
-            >
-              Plan New Mission
-            </button>
-            <p className="mt-3">No missions yet.</p>
-          </div>
-        )}
+        {tab === "missions" && <MissionsTab />}
         {tab === "fields" && <FieldsTab />}
         {tab === "alerts" && <div className="p-4">No alerts.</div>}
       </div>
@@ -61,6 +59,7 @@ function RobotTab() {
 
   const selectedId = useFleet((s) => s.selectedId);
   const robots = useFleet((s) => s.robots);
+  const { data: missions = [] } = useMissions();
 
   if (!selectedId) {
     return (
@@ -74,10 +73,15 @@ function RobotTab() {
   if (!robot) return null;
 
   const offline = !robot.online;
-  const status = offline ? "offline" : (robot.state?.status ?? "idle");
-  const badge = STATUS_COLORS[status] ?? STATUS_COLORS.idle;
+  const status = robot.status ?? "unknown";
+  const badge = STATUS_COLORS[status] ?? STATUS_COLORS.offline;
   const battPct = robot.battery?.battery_pct ?? null;
-  const ts = latestTs(robot.state?.ts, robot.battery?.ts, robot.pose?.ts);
+  const ts = latestTs(robot.battery?.ts, robot.pose?.ts);
+
+  const activeMission =
+    missions.find(
+      (m) => m.robot_id === selectedId && isActiveStatus(m.status),
+    ) ?? null;
 
   return (
     <div className="p-4 flex flex-col gap-5">
@@ -97,11 +101,6 @@ function RobotTab() {
             {status}
           </span>
         </div>
-        {robot.state?.task && (
-          <div className="mt-1 text-ui-xs text-t3 truncate">
-            {robot.state.task}
-          </div>
-        )}
       </div>
 
       <div>
@@ -137,9 +136,238 @@ function RobotTab() {
         </span>
       </div>
 
+      <div>
+        <div className="text-ui-xs uppercase tracking-wider text-t3 font-semibold mb-2">
+          Current mission
+        </div>
+        {activeMission ? (
+          <CurrentMissionCard mission={activeMission} />
+        ) : (
+          <span className="text-ui-xs text-t3">None — robot is idle.</span>
+        )}
+      </div>
+
       <div className="text-ui-xs text-t3">
         {offline ? "Last seen" : "Updated"} {ts ? relativeTime(ts) : "—"}
       </div>
+    </div>
+  );
+}
+
+function CurrentMissionCard({ mission }: { mission: Mission }) {
+  const live = useMissionState(mission.mission_id);
+  const vm = toMissionViewModel(mission, live);
+  return (
+    <Link
+      to="/missions/$id"
+      params={{ id: vm.id }}
+      className="block border border-border rounded-md p-2.5 hover:bg-[#F8FAFC] transition-colors"
+    >
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="text-ui-sm font-medium text-t1 truncate flex-1">
+          {vm.name}
+        </span>
+        <StatusPill variant="mission" status={vm.status} />
+      </div>
+      {vm.currentStageIndex !== null && (
+        <p className="text-ui-xs text-t3 mb-1 tabular-nums">
+          Stage {vm.currentStageIndex + 1}/{vm.stageCount}
+        </p>
+      )}
+      {vm.overallProgress !== null && (
+        <div className="h-[3px] bg-[#E2E8F0] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-primary transition-all duration-300"
+            style={{ width: `${vm.overallProgress * 100}%` }}
+          />
+        </div>
+      )}
+    </Link>
+  );
+}
+
+function MissionsTab() {
+  const { data: missions = [], isLoading } = useMissions();
+  const liveStates = useMissionStates();
+
+  const active = missions.filter((m) => isActiveStatus(m.status));
+  const drafts = missions.filter((m) => m.status === "DRAFT");
+  const recent = missions
+    .filter(
+      (m) =>
+        !isActiveStatus(m.status) &&
+        m.status !== "DRAFT" &&
+        m.status !== "ASSIGNED",
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    )
+    .slice(0, 5);
+  const scheduled = missions.filter((m) => m.status === "ASSIGNED");
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-3 py-2 border-b border-border">
+        <Link
+          to="/missions/new"
+          className="flex items-center justify-center w-full h-8 rounded bg-primary text-white text-ui-md font-semibold hover:bg-[#15803D] transition-colors"
+        >
+          New Mission
+        </Link>
+      </div>
+
+      {isLoading && (
+        <div className="p-4 text-t3 text-ui-sm">Loading missions…</div>
+      )}
+
+      {!isLoading && missions.length === 0 && (
+        <div className="p-4 text-t3 text-ui-sm">No missions yet.</div>
+      )}
+
+      <div className="flex-1 overflow-y-auto">
+        {active.length > 0 && (
+          <BucketSection
+            title="Running now"
+            count={active.length}
+            dotColor="bg-[#16A34A]"
+          >
+            {active.map((m) => (
+              <MissionRow
+                key={m.mission_id}
+                mission={m}
+                live={liveStates.get(m.mission_id) ?? null}
+              />
+            ))}
+          </BucketSection>
+        )}
+        {scheduled.length > 0 && (
+          <BucketSection
+            title="Scheduled"
+            count={scheduled.length}
+            dotColor="bg-[#3B82F6]"
+          >
+            {scheduled.map((m) => (
+              <MissionRow
+                key={m.mission_id}
+                mission={m}
+                live={liveStates.get(m.mission_id) ?? null}
+              />
+            ))}
+          </BucketSection>
+        )}
+        {drafts.length > 0 && (
+          <BucketSection
+            title="Drafts"
+            count={drafts.length}
+            dotColor="bg-[#94A3B8]"
+          >
+            {drafts.map((m) => (
+              <MissionRow
+                key={m.mission_id}
+                mission={m}
+                live={liveStates.get(m.mission_id) ?? null}
+              />
+            ))}
+          </BucketSection>
+        )}
+        {recent.length > 0 && (
+          <BucketSection
+            title="Recent"
+            count={recent.length}
+            dotColor="bg-[#94A3B8]"
+          >
+            {recent.map((m) => (
+              <MissionRow
+                key={m.mission_id}
+                mission={m}
+                live={liveStates.get(m.mission_id) ?? null}
+              />
+            ))}
+          </BucketSection>
+        )}
+      </div>
+
+      {missions.length > 0 && (
+        <div className="px-3 py-2 border-t border-border">
+          <Link
+            to="/missions"
+            className="text-ui-xs text-primary hover:underline"
+          >
+            View all missions →
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MissionRow({
+  mission,
+  live,
+}: {
+  mission: Mission;
+  live: MissionState | null;
+}) {
+  const vm = toMissionViewModel(mission, live);
+  return (
+    <Link
+      to="/missions/$id"
+      params={{ id: vm.id }}
+      className="block px-3 py-2 hover:bg-[#F8FAFC] transition-colors border-b border-border"
+    >
+      <div className="flex items-center gap-2">
+        <StatusPill variant="mission" status={vm.status} dotOnly />
+        <span className="text-ui-sm font-medium text-t1 truncate flex-1">
+          {vm.name}
+        </span>
+        {vm.robotId && (
+          <span
+            className="text-ui-xs text-t3 font-mono truncate min-w-0 max-w-[40%]"
+            title={vm.robotId}
+          >
+            {vm.robotId}
+          </span>
+        )}
+      </div>
+      {vm.status === "RUNNING" && vm.overallProgress !== null && (
+        <div className="ml-[15px] mt-1.5 h-[3px] bg-[#E2E8F0] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-primary"
+            style={{ width: `${vm.overallProgress * 100}%` }}
+          />
+        </div>
+      )}
+    </Link>
+  );
+}
+
+function BucketSection({
+  title,
+  count,
+  dotColor,
+  children,
+}: {
+  title: string;
+  count: number;
+  dotColor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="px-3 py-1.5 bg-[#FAFBFC] border-b border-border flex items-center gap-1.5">
+        <span
+          className={`inline-block w-[5px] h-[5px] rounded-full ${dotColor}`}
+        />
+        <span className="text-ui-xs font-semibold text-t3 uppercase tracking-wider">
+          {title}
+        </span>
+        <span className="text-ui-xs text-t2 font-bold tabular-nums">
+          {count}
+        </span>
+      </div>
+      {children}
     </div>
   );
 }
@@ -188,7 +416,7 @@ function FieldsTab() {
                       {field.name}
                     </span>
                     <span className="text-ui-xs font-mono text-t2 shrink-0">
-                      {field.area_ha.toFixed(2)} ha
+                      {(field.area_ha ?? 0).toFixed(2)} ha
                     </span>
                   </div>
                   {field.notes && (

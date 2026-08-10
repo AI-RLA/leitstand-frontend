@@ -109,6 +109,222 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/missions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Missions
+         * @description List missions, newest first, optionally filtered to one robot's missions.
+         */
+        get: operations["list_missions_api_v1_missions__get"];
+        put?: never;
+        /** Create Mission */
+        post: operations["create_mission_api_v1_missions__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Mission */
+        get: operations["get_mission_api_v1_missions__mission_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Mission */
+        delete: operations["delete_mission_api_v1_missions__mission_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Mission */
+        patch: operations["update_mission_api_v1_missions__mission_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Mission State
+         * @description Return the mission's per-stage runtime state, with errors attributed per stage.
+         */
+        get: operations["get_mission_state_api_v1_missions__mission_id__state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assign Mission */
+        post: operations["assign_mission_api_v1_missions__mission_id__assign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/unassign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unassign Mission */
+        post: operations["unassign_mission_api_v1_missions__mission_id__unassign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dispatch Mission */
+        post: operations["dispatch_mission_api_v1_missions__mission_id__dispatch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Mission */
+        post: operations["cancel_mission_api_v1_missions__mission_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause Mission */
+        post: operations["pause_mission_api_v1_missions__mission_id__pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume Mission */
+        post: operations["resume_mission_api_v1_missions__mission_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Mission */
+        post: operations["reset_mission_api_v1_missions__mission_id__reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sites/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sites */
+        get: operations["list_sites_api_v1_sites__get"];
+        put?: never;
+        /** Create Site */
+        post: operations["create_site_api_v1_sites__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sites/{site_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Site */
+        get: operations["get_site_api_v1_sites__site_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Site */
+        delete: operations["delete_site_api_v1_sites__site_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Site */
+        patch: operations["update_site_api_v1_sites__site_id__patch"];
+        trace?: never;
+    };
     "/api/v1/users/me": {
         parameters: {
             query?: never;
@@ -142,6 +358,28 @@ export interface components {
             /** Charging */
             charging: boolean;
         };
+        /**
+         * ErrorOrigin
+         * @description Source of a mission error: the robot's execution, or a backend-authored cause.
+         * @enum {string}
+         */
+        ErrorOrigin: "robot" | "backend";
+        /**
+         * ErrorReference
+         * @description Key/value pair attaching context to a :class:`MissionError`.
+         */
+        ErrorReference: {
+            /** Key */
+            key: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * ErrorSeverity
+         * @description Severity of an error reported by the robot.
+         * @enum {string}
+         */
+        ErrorSeverity: "WARNING" | "FATAL";
         /** FieldCreate */
         FieldCreate: {
             /** Name */
@@ -169,7 +407,7 @@ export interface components {
             name: string;
             geometry: components["schemas"]["Polygon"];
             /** Area Ha */
-            area_ha: number;
+            area_ha: number | null;
             /** Notes */
             notes: string | null;
             /**
@@ -188,19 +426,166 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /**
-         * Metadata
-         * @description What a robot publishes about itself on the metadata queryable.
-         *
-         *     Only ``id`` is typed today. ``extra='allow'`` keeps the model
-         *     forward-compatible with future identity fields (capabilities,
-         *     role, etc.) without a coordinated rollout.
-         */
+        /** Metadata */
         Metadata: {
             /** Id */
             id: string;
         } & {
             [key: string]: unknown;
+        };
+        /** MissionAssignBody */
+        MissionAssignBody: {
+            /** Robot Id */
+            robot_id: string;
+        };
+        /** MissionCreate */
+        MissionCreate: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Stages */
+            stages: components["schemas"]["NavigationStage-Input"][];
+        };
+        /** MissionDispatchBody */
+        MissionDispatchBody: {
+            /** Robot Id */
+            robot_id: string;
+        };
+        /**
+         * MissionError
+         * @description A structured error report attached to a stage or mission.
+         *
+         *     Mirrors the proto ``Error`` (severity / type / references / description); ``origin``
+         *     is a backend-only marker distinguishing a robot fault from a backend-authored cause.
+         */
+        MissionError: {
+            origin: components["schemas"]["ErrorOrigin"];
+            severity: components["schemas"]["ErrorSeverity"];
+            /**
+             * Type
+             * @description Stable identifier for programmatic dispatch (e.g. ``boundary_anchor_mismatch``).
+             */
+            type: string;
+            /** References */
+            references?: components["schemas"]["ErrorReference"][];
+            /** Description */
+            description: string;
+        };
+        /**
+         * MissionStateView
+         * @description A mission's per-stage state as one read shape for both REST and the live WS frame.
+         */
+        MissionStateView: {
+            /**
+             * Mission Id
+             * Format: uuid
+             */
+            mission_id: string;
+            /** Stage States */
+            stage_states: components["schemas"]["StageStateView"][];
+        };
+        /**
+         * MissionStatus
+         * @description Lifecycle state of a Mission as tracked by the backend.
+         * @enum {string}
+         */
+        MissionStatus: "DRAFT" | "ASSIGNED" | "DISPATCHED" | "RUNNING" | "PAUSED" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+        /** MissionUpdate */
+        MissionUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Stages */
+            stages?: components["schemas"]["NavigationStage-Input"][] | null;
+        };
+        /** MissionView */
+        MissionView: {
+            /**
+             * Mission Id
+             * Format: uuid
+             */
+            mission_id: string;
+            /** Update Id */
+            update_id: number;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+            /** Stages */
+            stages: components["schemas"]["NavigationStage-Output"][];
+            status: components["schemas"]["MissionStatus"];
+            /** Robot Id */
+            robot_id: string | null;
+            /** Dispatched At */
+            dispatched_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Failure Errors */
+            failure_errors?: components["schemas"]["MissionError"][] | null;
+        };
+        /**
+         * NavigationStage
+         * @description Drive the robot through an ordered list of waypoints.
+         */
+        "NavigationStage-Input": {
+            /**
+             * Stage Id
+             * Format: uuid
+             */
+            stage_id: string;
+            /**
+             * On Cancel
+             * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
+             */
+            on_cancel?: components["schemas"]["NavigationStage-Input"][] | null;
+            /**
+             * Kind
+             * @default navigation
+             * @constant
+             */
+            kind: "navigation";
+            /**
+             * Waypoints
+             * @description Ordered waypoints to traverse. All waypoints in one stage must share their ``kind`` (homogeneity); this is enforced by the backend at dispatch, not by this schema.
+             */
+            waypoints: (components["schemas"]["WGS84Waypoint"] | components["schemas"]["SiteLocalWaypoint"])[];
+        };
+        /**
+         * NavigationStage
+         * @description Drive the robot through an ordered list of waypoints.
+         */
+        "NavigationStage-Output": {
+            /**
+             * Stage Id
+             * Format: uuid
+             */
+            stage_id: string;
+            /**
+             * On Cancel
+             * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
+             */
+            on_cancel?: components["schemas"]["NavigationStage-Output"][] | null;
+            /**
+             * Kind
+             * @default navigation
+             * @constant
+             */
+            kind: "navigation";
+            /**
+             * Waypoints
+             * @description Ordered waypoints to traverse. All waypoints in one stage must share their ``kind`` (homogeneity); this is enforced by the backend at dispatch, not by this schema.
+             */
+            waypoints: (components["schemas"]["WGS84Waypoint"] | components["schemas"]["SiteLocalWaypoint"])[];
         };
         /**
          * Polygon
@@ -260,24 +645,12 @@ export interface components {
             number,
             number
         ];
-        /** RobotState */
-        RobotState: {
-            /**
-             * Ts
-             * Format: date-time
-             */
-            ts: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "active" | "idle" | "charging" | "alert";
-            /**
-             * Task
-             * @default
-             */
-            task: string;
-        };
+        /**
+         * RobotStatus
+         * @description Displayed operational status of a robot.
+         * @enum {string}
+         */
+        RobotStatus: "offline" | "charging" | "active" | "idle";
         /** RobotView */
         RobotView: {
             /** Id */
@@ -292,8 +665,141 @@ export interface components {
             last_seen: string;
             pose?: components["schemas"]["Pose"] | null;
             battery?: components["schemas"]["Battery"] | null;
-            state?: components["schemas"]["RobotState"] | null;
+            status: components["schemas"]["RobotStatus"];
         };
+        /** SiteCreate */
+        SiteCreate: {
+            /** Name */
+            name: string;
+            /** Anchor Lat */
+            anchor_lat: number;
+            /** Anchor Lon */
+            anchor_lon: number;
+            /** Anchor Heading Deg */
+            anchor_heading_deg: number;
+            /** Nav2 Map Ref */
+            nav2_map_ref: string;
+            outline?: components["schemas"]["Polygon"] | null;
+            /** Description */
+            description?: string | null;
+        };
+        /**
+         * SiteLocalWaypoint
+         * @description A waypoint expressed in a Site's local Cartesian frame.
+         */
+        SiteLocalWaypoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "site_local";
+            /**
+             * Site Id
+             * Format: uuid
+             * @description Identifies the Site whose local frame this waypoint uses.
+             */
+            site_id: string;
+            /**
+             * X
+             * @description Meters along the site's local +x axis.
+             */
+            x: number;
+            /**
+             * Y
+             * @description Meters along the site's local +y axis.
+             */
+            y: number;
+            /**
+             * Theta
+             * @description Target robot heading in radians, CCW from the site's local +x axis.
+             */
+            theta?: number | null;
+        };
+        /** SiteUpdate */
+        SiteUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Anchor Lat */
+            anchor_lat?: number | null;
+            /** Anchor Lon */
+            anchor_lon?: number | null;
+            /** Anchor Heading Deg */
+            anchor_heading_deg?: number | null;
+            /** Nav2 Map Ref */
+            nav2_map_ref?: string | null;
+            outline?: components["schemas"]["Polygon"] | null;
+            /** Description */
+            description?: string | null;
+        };
+        /** SiteView */
+        SiteView: {
+            /**
+             * Site Id
+             * Format: uuid
+             */
+            site_id: string;
+            /** Name */
+            name: string;
+            /** Anchor Lat */
+            anchor_lat: number;
+            /** Anchor Lon */
+            anchor_lon: number;
+            /** Anchor Heading Deg */
+            anchor_heading_deg: number;
+            /** Nav2 Map Ref */
+            nav2_map_ref: string;
+            outline: components["schemas"]["Polygon"] | null;
+            /** Description */
+            description: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * StageStateView
+         * @description One stage's runtime state plus the errors attributed to it.
+         */
+        StageStateView: {
+            /**
+             * Stage Id
+             * Format: uuid
+             */
+            stage_id: string;
+            /** Stage Index */
+            stage_index: number;
+            status: components["schemas"]["StageStatus"];
+            /** Progress */
+            progress: number;
+            /** Started At */
+            started_at: string | null;
+            /** Ended At */
+            ended_at: string | null;
+            /** Result */
+            result: {
+                [key: string]: string;
+            } | null;
+            /** Errors */
+            errors: components["schemas"]["MissionError"][];
+        };
+        /**
+         * StageStatus
+         * @description Canonical per-stage status, covering both robot-reported and backend-resolved values.
+         *
+         *     The robot reports ``WAITING`` through ``FAILED`` on the wire. ``CANCELLED`` and
+         *     ``SKIPPED`` are backend-only: the robot cannot express them (it reports a cancelled
+         *     goal as ``FAILED`` and never reports a stage it did not reach), so the backend assigns
+         *     them when it resolves the final per-stage view at the terminal mission transition.
+         *     Inbound frames carry only the wire values; the anti-corruption mapper rejects any other.
+         * @enum {string}
+         */
+        StageStatus: "WAITING" | "INITIALIZING" | "RUNNING" | "PAUSED" | "FINISHED" | "FAILED" | "CANCELLED" | "SKIPPED";
         /** User */
         User: {
             /** Id */
@@ -313,6 +819,32 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * WGS84Waypoint
+         * @description A waypoint anchored in the WGS84 geographic frame.
+         */
+        WGS84Waypoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "wgs84";
+            /**
+             * Lat
+             * @description Degrees latitude, WGS84.
+             */
+            lat: number;
+            /**
+             * Lon
+             * @description Degrees longitude, WGS84.
+             */
+            lon: number;
+            /**
+             * Heading Deg
+             * @description Target robot heading in degrees clockwise from true north (compass bearing), [0, 360).
+             */
+            heading_deg?: number | null;
         };
     };
     responses: never;
@@ -553,6 +1085,570 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RobotView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_missions_api_v1_missions__get: {
+        parameters: {
+            query?: {
+                /** @description Filter to missions assigned to this robot id. */
+                robot?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_mission_api_v1_missions__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_mission_api_v1_missions__mission_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_mission_api_v1_missions__mission_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_mission_api_v1_missions__mission_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MissionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_mission_state_api_v1_missions__mission_id__state_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionStateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assign_mission_api_v1_missions__mission_id__assign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MissionAssignBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unassign_mission_api_v1_missions__mission_id__unassign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dispatch_mission_api_v1_missions__mission_id__dispatch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MissionDispatchBody"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_mission_api_v1_missions__mission_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pause_mission_api_v1_missions__mission_id__pause_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_mission_api_v1_missions__mission_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_mission_api_v1_missions__mission_id__reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sites_api_v1_sites__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteView"][];
+                };
+            };
+        };
+    };
+    create_site_api_v1_sites__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_site_api_v1_sites__site_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_site_api_v1_sites__site_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_site_api_v1_sites__site_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteView"];
                 };
             };
             /** @description Validation Error */

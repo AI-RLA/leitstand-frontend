@@ -5,8 +5,10 @@ import { Footer } from "@/features/fleet/Footer";
 import { api } from "./api/client";
 import { useFleet } from "./stores/fleet";
 import { connectWs } from "./ws/client";
+import { useMissionLifecycleSync } from "./ws/useMissionLifecycleSync";
 
 export function RootLayout() {
+  useMissionLifecycleSync();
   useEffect(() => {
     api
       .listRobots()
@@ -16,7 +18,7 @@ export function RootLayout() {
           fleet.setOnline(r.id, r.online);
           if (r.pose) fleet.setPose(r.id, r.pose);
           if (r.battery) fleet.setBattery(r.id, r.battery);
-          if (r.state) fleet.setState(r.id, r.state);
+          fleet.setStatus(r.id, r.status);
         }
       })
       .catch((err) => {

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useField, useDeleteField, useUpdateField } from "@/api/fields";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
 
 interface Props {
   id: string;
@@ -77,12 +79,11 @@ export function FieldDetail({ id }: Props) {
             <span className="text-ui-xs uppercase tracking-wider font-semibold text-t3">
               Name
             </span>
-            <input
+            <Input
               autoFocus
               required
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="border border-border rounded-md px-3 py-2 text-[13px] text-t1 bg-[#F8FAFC] focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
             />
           </label>
           <label className="flex flex-col gap-1.5">
@@ -92,11 +93,10 @@ export function FieldDetail({ id }: Props) {
                 (optional)
               </span>
             </span>
-            <textarea
+            <Textarea
               rows={3}
               value={editNotes}
               onChange={(e) => setEditNotes(e.target.value)}
-              className="border border-border rounded-md px-3 py-2 text-[13px] text-t1 bg-[#F8FAFC] focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none transition"
             />
           </label>
           <div className="flex gap-2">
@@ -119,7 +119,7 @@ export function FieldDetail({ id }: Props) {
       ) : (
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h2 className="text-[20px] font-semibold text-t1 leading-tight">
+            <h2 className="text-ui-xl font-semibold text-t1 leading-tight">
               {field.name}
             </h2>
           </div>
@@ -152,7 +152,7 @@ export function FieldDetail({ id }: Props) {
       <div className="grid grid-cols-3 gap-3 mb-5">
         <Stat
           label="Area"
-          value={`${field.area_ha.toFixed(3)}`}
+          value={`${(field.area_ha ?? 0).toFixed(3)}`}
           unit="ha"
           accent
         />
@@ -162,7 +162,7 @@ export function FieldDetail({ id }: Props) {
 
       {field.notes && (
         <Card title="Notes">
-          <p className="text-[13px] text-t1 leading-relaxed">{field.notes}</p>
+          <p className="text-ui-md text-t1 leading-relaxed">{field.notes}</p>
         </Card>
       )}
 
@@ -232,7 +232,7 @@ function Stat({
       </p>
       <div className="flex items-baseline gap-1">
         <span
-          className={`font-semibold text-t1 leading-none ${accent ? "text-[22px]" : "text-[20px]"}`}
+          className={`font-semibold text-t1 leading-none ${accent ? "text-ui-2xl" : "text-ui-xl"}`}
         >
           {value}
         </span>

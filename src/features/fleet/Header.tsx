@@ -18,7 +18,7 @@ function NavLink({ to, label }: { to: string; label: string }) {
 export function Header() {
   const robots = useFleet((s) => s.robots);
   const alertCount = Object.values(robots).filter(
-    (r) => r.state?.status === "alert",
+    (r) => (r.status as string) === "alert",
   ).length;
   const { data: user } = useCurrentUser();
   const [now, setNow] = useState(() => new Date());
@@ -51,12 +51,13 @@ export function Header() {
             <circle cx="15" cy="14" r="1" fill="currentColor" />
           </svg>
         </div>
-        <span className="text-[16px] font-bold text-t1">Leitstand</span>
+        <span className="text-ui-lg font-bold text-t1">Leitstand</span>
       </div>
       <nav className="flex items-center gap-5 text-ui-lg">
         <NavLink to="/" label="Overview" />
         <NavLink to="/fields" label="Fields" />
-        <span className="text-t2">Missions</span>
+        <NavLink to="/missions" label="Missions" />
+        <NavLink to="/sites" label="Sites" />
         <span className="text-t2">AI Agents</span>
       </nav>
       <div className="flex-1" />

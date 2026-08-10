@@ -18,7 +18,7 @@ export function Sidebar() {
 
   const counts = list.reduce(
     (acc, r) => {
-      const status = r.online ? (r.state?.status ?? "idle") : "offline";
+      const status = r.status ?? "offline";
       acc[status] = (acc[status] ?? 0) + 1;
       return acc;
     },

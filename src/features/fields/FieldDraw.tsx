@@ -11,6 +11,8 @@ import {
   DRAW_SOURCES,
   DRAW_LAYERS,
 } from "./fieldDrawUtils";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
 import { loadBasemap } from "@/stores/mapView";
 import { BasemapControl } from "@/components/map/BasemapControl";
 import {
@@ -216,14 +218,13 @@ export function FieldDraw() {
                 <span className="text-ui-xs uppercase tracking-wider font-semibold text-t3">
                   Field name
                 </span>
-                <input
+                <Input
                   type="text"
                   required
                   autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Nordwiese"
-                  className="border border-border rounded-md px-3 py-2 text-[13px] text-t1 bg-[#F8FAFC] focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition placeholder:text-t3"
                 />
               </label>
               <label className="flex flex-col gap-1.5">
@@ -233,12 +234,11 @@ export function FieldDraw() {
                     (optional)
                   </span>
                 </span>
-                <textarea
+                <Textarea
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Soil type, irrigation, etc."
-                  className="border border-border rounded-md px-3 py-2 text-[13px] text-t1 bg-[#F8FAFC] focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none transition placeholder:text-t3"
                 />
               </label>
               {error && (
