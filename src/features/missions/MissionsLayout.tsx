@@ -18,7 +18,8 @@ export function MissionsLayout() {
       >
         <MissionsSidebar />
       </ResizablePane>
-      <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+      {/* Size reference for the routes inside; a page cannot query its own width. */}
+      <div className="flex-1 overflow-y-auto bg-canvas [container-type:inline-size]">
         {atIndex ? (
           <EmptyState
             className="mt-16"

@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { Sidebar } from "@/features/fleet/Sidebar";
-import { RightRail } from "@/features/fleet/RightRail";
 import { FleetMap } from "@/features/fleet/Map";
 import { ResizablePane } from "@/components/ui/ResizablePane";
 
 export default function App() {
   const [leftDragging, setLeftDragging] = useState(false);
-  const [rightDragging, setRightDragging] = useState(false);
-  const isDragging = leftDragging || rightDragging;
+  const isDragging = leftDragging;
 
   return (
     <div className="h-full flex overflow-hidden">
@@ -27,16 +25,6 @@ export default function App() {
       >
         <FleetMap />
       </div>
-      <ResizablePane
-        paneId="fleet-rail"
-        side="right"
-        initial={320}
-        min={200}
-        max={480}
-        onDragStateChange={setRightDragging}
-      >
-        <RightRail />
-      </ResizablePane>
     </div>
   );
 }

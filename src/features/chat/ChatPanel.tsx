@@ -1,5 +1,5 @@
 import { useChat } from "@ai-sdk/react";
-import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import { isToolUIPart, type UIMessage } from "ai";
 import { AlertTriangle } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
@@ -7,47 +7,9 @@ import remarkGfm from "remark-gfm";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
-import { ApprovalCard, type PendingApproval } from "./ApprovalCard";
+import { ApprovalCard } from "./ApprovalCard";
+import { bareToolName, pendingApprovalsOf } from "./approvals";
 import { chatSession, startNewChat } from "./session";
-
-/** Strip the toolset prefix the agent applies, leaving the bare operation id the card keys on. */
-function bareToolName(part: Parameters<typeof getToolName>[0]): string {
-  return getToolName(part).replace(/^leitstand_/, "");
-}
-
-/**
- * Pull the actuations this message proposed, and what the operator decided about each.
- *
- * A call awaiting a decision arrives in the `approval-requested` state carrying the arguments and
- * an approval id; answering moves it to `approval-responded`. Both are returned so the card can
- * take its enabled state from the part itself: component state would forget the decision when the
- * panel unmounts on a tab switch, bringing the buttons back on an already-answered proposal.
- */
-function pendingApprovalsOf(message: UIMessage): PendingApproval[] {
-  const out: PendingApproval[] = [];
-  for (const part of message.parts) {
-    if (!isToolUIPart(part)) continue;
-    if (
-      part.state !== "approval-requested" &&
-      part.state !== "approval-responded"
-    )
-      continue;
-    const approval = part.approval;
-    if (!approval?.id) continue;
-    out.push({
-      toolName: bareToolName(part),
-      input: (part.input ?? {}) as Record<string, unknown>,
-      approvalId: approval.id,
-      decision:
-        part.state === "approval-responded"
-          ? approval.approved
-            ? "approved"
-            : "denied"
-          : undefined,
-    });
-  }
-  return out;
-}
 
 // Sized ui-md, not the ui-sm used across the rest of the app: the type scale is tuned for dense
 // chrome that gets glanced at, and this is the one surface carrying prose to be read.
@@ -222,6 +184,25 @@ const MessageRow = memo(function MessageRow({
 // work that leaves the rest of the UI unresponsive mid-answer.
 const RENDER_THROTTLE_MS = 50;
 
+// A cold first turn takes the better part of a minute, and a label that never changes reads as a
+// hang, so a wait long enough to be worth naming is counted out.
+const WAIT_VISIBLE_S = 3;
+
+function WaitedSeconds() {
+  const [waited, setWaited] = useState(0);
+  // Mounted only while the turn is waiting, so unmounting is what resets the count.
+  useEffect(() => {
+    const startedAt = Date.now();
+    const id = window.setInterval(
+      () => setWaited(Math.floor((Date.now() - startedAt) / 1000)),
+      1000,
+    );
+    return () => window.clearInterval(id);
+  }, []);
+  if (waited < WAIT_VISIBLE_S) return null;
+  return <span className="ml-1 font-mono tabular-nums">{waited}s</span>;
+}
+
 export function ChatPanel() {
   const [draft, setDraft] = useState("");
   // The chat lives outside this component, so switching to another tab and back does not take the
@@ -238,6 +219,7 @@ export function ChatPanel() {
     addToolApprovalResponse,
   } = useChat({ chat, throttle: RENDER_THROTTLE_MS });
   const busy = status === "submitted" || status === "streaming";
+  const waiting = status === "submitted";
   // An approval can only be answered while its message is the newest one, because the SDK rewrites
   // that message alone. Sending anything else first would leave the card on screen with live
   // buttons that no longer reach the proposal, and the proposal itself awaiting a decision that can
@@ -302,7 +284,7 @@ export function ChatPanel() {
             stickToBottom.current = true;
           }}
           disabled={busy || messages.length === 0}
-          className="rounded-md border border-border px-2.5 py-1 text-ui-sm font-medium text-t2 transition-colors hover:border-border-strong hover:bg-[#F8FAFC] disabled:opacity-40 disabled:hover:bg-transparent"
+          className="rounded-md border border-border px-2.5 py-1 text-ui-sm font-medium text-t2 transition-colors hover:border-border-strong hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent"
         >
           New chat
         </button>
@@ -331,17 +313,23 @@ export function ChatPanel() {
 
         {busy && (
           <div className="flex items-center gap-2 px-4 py-3">
-            <span
-              className="h-[5px] w-[5px] animate-pulse rounded-full bg-primary"
-              aria-hidden
-            />
-            <span className="text-ui-sm text-t3">
-              {status === "submitted" ? "Querying the fleet" : "Answering"}
+            <span className="relative flex h-2 w-2" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
+            {/* Silent once text is arriving: the answer itself is the better indicator. */}
+            {waiting && (
+              <span className="text-ui-sm text-t3">
+                Working
+                <WaitedSeconds />
+              </span>
+            )}
+            {/* Pinned right so the row's one fixed element never moves: the label appears,
+                counts up and disappears, and each of those would otherwise shove it. */}
             <button
               type="button"
               onClick={() => stop()}
-              className="text-ui-sm text-t3 underline underline-offset-2 hover:text-t2"
+              className="ml-auto text-ui-sm text-t3 underline underline-offset-2 hover:text-t2"
             >
               Stop
             </button>

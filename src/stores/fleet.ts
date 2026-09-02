@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useSidePanel, type SidePanelTab } from "./sidePanel";
 import type { Battery, Pose, RobotStatus } from "@/api/client";
 
 export type RobotEntry = {
@@ -9,14 +10,11 @@ export type RobotEntry = {
   status: RobotStatus | null;
 };
 
-export type RightRailTab = "robot" | "ai" | "missions" | "fields" | "alerts";
-
 type Store = {
   robots: Record<string, RobotEntry>;
   selectedId: string | null;
   selectedFieldId: string | null;
   flyToRequest: { robotId: string; nonce: number } | null;
-  activeTab: RightRailTab;
   wsConnected: boolean;
   backendVersion: string | null;
   setOnline: (id: string, online: boolean) => void;
@@ -26,37 +24,13 @@ type Store = {
   select: (id: string | null) => void;
   selectField: (id: string | null) => void;
   flyTo: (robotId: string) => void;
-  setActiveTab: (tab: RightRailTab) => void;
   setWsConnected: (connected: boolean) => void;
   setBackendVersion: (version: string | null) => void;
 };
 
-const TAB_KEY = "leitstand.activeTab";
-const VALID_TABS: RightRailTab[] = [
-  "robot",
-  "ai",
-  "missions",
-  "fields",
-  "alerts",
-];
-
-function loadTab(): RightRailTab {
-  try {
-    const v = sessionStorage.getItem(TAB_KEY);
-    if (v && (VALID_TABS as string[]).includes(v)) return v as RightRailTab;
-  } catch {
-    // sessionStorage may be unavailable (private browsing, quota)
-  }
-  return "missions";
-}
-
-function saveTab(tab: RightRailTab) {
-  try {
-    sessionStorage.setItem(TAB_KEY, tab);
-  } catch {
-    // sessionStorage may be unavailable (private browsing, quota)
-  }
-}
+// Neither the assistant nor agent findings are among them: both live in the side panel, on every
+// route rather than only this one. A tab persisted from before that move falls through to the
+// default below.
 
 const ensure = (entries: Record<string, RobotEntry>, id: string) => {
   if (!entries[id]) {
@@ -71,12 +45,23 @@ const ensure = (entries: Record<string, RobotEntry>, id: string) => {
   return entries[id];
 };
 
+/**
+ * Show a tab, opening the panel if it is shut.
+ *
+ * Selecting something on the map has to be visible to mean anything, and a closed panel would
+ * swallow it.
+ */
+function revealTab(tab: SidePanelTab): void {
+  const panel = useSidePanel.getState();
+  panel.setTab(tab);
+  panel.setOpen(true);
+}
+
 export const useFleet = create<Store>((set) => ({
   robots: {},
   selectedId: null,
   selectedFieldId: null,
   flyToRequest: null,
-  activeTab: loadTab(),
   wsConnected: false,
   backendVersion: null,
   setOnline: (id, online) =>
@@ -104,27 +89,13 @@ export const useFleet = create<Store>((set) => ({
       return { robots: r };
     }),
   select: (id) => {
-    const tab = id ? ("robot" as RightRailTab) : undefined;
-    if (tab) saveTab(tab);
-    return set({
-      selectedId: id,
-      selectedFieldId: null,
-      ...(tab ? { activeTab: tab } : {}),
-    });
+    if (id) revealTab("robot");
+    return set({ selectedId: id, selectedFieldId: null });
   },
   flyTo: (robotId) => set({ flyToRequest: { robotId, nonce: Date.now() } }),
   selectField: (id) => {
-    const tab = id ? ("fields" as RightRailTab) : undefined;
-    if (tab) saveTab(tab);
-    return set({
-      selectedFieldId: id,
-      selectedId: null,
-      ...(tab ? { activeTab: tab } : {}),
-    });
-  },
-  setActiveTab: (tab) => {
-    saveTab(tab);
-    return set({ activeTab: tab });
+    if (id) revealTab("fields");
+    return set({ selectedFieldId: id, selectedId: null });
   },
   setWsConnected: (connected) => set({ wsConnected: connected }),
   setBackendVersion: (version) => set({ backendVersion: version }),

@@ -58,7 +58,10 @@ export function Header() {
         <NavLink to="/fields" label="Fields" />
         <NavLink to="/missions" label="Missions" />
         <NavLink to="/sites" label="Sites" />
-        <span className="text-t2">AI Agents</span>
+        {/* Named but not yet a destination: no agent runs unattended, so a link would lead
+            somewhere with nothing to show. Reads as an ordinary item so it sits in the bar as the
+            others do. */}
+        <span className="text-t2 cursor-default">AI Agents</span>
       </nav>
       <div className="flex-1" />
       {user?.name && <span className="text-ui-sm text-t2">{user.name}</span>}

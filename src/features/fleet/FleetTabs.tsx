@@ -1,10 +1,15 @@
+/**
+ * The fleet overview's context tabs: what is selected on the map, and what is running on it.
+ *
+ * They live in the side panel alongside the assistant rather than in a rail of their own, so
+ * the right edge is one panel with one width instead of two competing for the map.
+ */
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useFields } from "@/api/fields";
 import { useMissions } from "@/api/missions";
 import { useMissionState, useMissionStates } from "@/ws/missionState";
 import { useFleet } from "@/stores/fleet";
-import { ChatPanel } from "@/features/chat/ChatPanel";
 import { StatusPill } from "@/components/ui/StatusPill";
 import {
   isActiveStatus,
@@ -18,40 +23,7 @@ import {
   latestTs,
 } from "./constants";
 
-export function RightRail() {
-  const tab = useFleet((s) => s.activeTab);
-  const setTab = useFleet((s) => s.setActiveTab);
-  return (
-    <aside className="h-full bg-white flex flex-col">
-      <div className="h-12 px-1 border-b border-border flex items-center text-ui-md font-medium">
-        <TabBtn active={tab === "robot"} onClick={() => setTab("robot")}>
-          Robot
-        </TabBtn>
-        <TabBtn active={tab === "missions"} onClick={() => setTab("missions")}>
-          Missions
-        </TabBtn>
-        <TabBtn active={tab === "fields"} onClick={() => setTab("fields")}>
-          Fields
-        </TabBtn>
-        <TabBtn active={tab === "ai"} onClick={() => setTab("ai")}>
-          AI Agent
-        </TabBtn>
-        <TabBtn active={tab === "alerts"} onClick={() => setTab("alerts")}>
-          Alerts
-        </TabBtn>
-      </div>
-      <div className="flex-1 overflow-y-auto text-ui-md text-t2">
-        {tab === "robot" && <RobotTab />}
-        {tab === "ai" && <ChatPanel />}
-        {tab === "missions" && <MissionsTab />}
-        {tab === "fields" && <FieldsTab />}
-        {tab === "alerts" && <div className="p-4">No alerts.</div>}
-      </div>
-    </aside>
-  );
-}
-
-function RobotTab() {
+export function RobotTab() {
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 10_000);
@@ -162,7 +134,7 @@ function CurrentMissionCard({ mission }: { mission: Mission }) {
     <Link
       to="/missions/$id"
       params={{ id: vm.id }}
-      className="block border border-border rounded-md p-2.5 hover:bg-[#F8FAFC] transition-colors"
+      className="block border border-border rounded-md p-2.5 hover:bg-muted transition-colors"
     >
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className="text-ui-sm font-medium text-t1 truncate flex-1">
@@ -187,7 +159,7 @@ function CurrentMissionCard({ mission }: { mission: Mission }) {
   );
 }
 
-function MissionsTab() {
+export function MissionsTab() {
   const { data: missions = [], isLoading } = useMissions();
   const liveStates = useMissionStates();
 
@@ -316,7 +288,7 @@ function MissionRow({
     <Link
       to="/missions/$id"
       params={{ id: vm.id }}
-      className="block px-3 py-2 hover:bg-[#F8FAFC] transition-colors border-b border-border"
+      className="block px-3 py-2 hover:bg-muted transition-colors border-b border-border"
     >
       <div className="flex items-center gap-2">
         <StatusPill variant="mission" status={vm.status} dotOnly />
@@ -373,7 +345,7 @@ function BucketSection({
   );
 }
 
-function FieldsTab() {
+export function FieldsTab() {
   const { data: fields, isLoading } = useFields();
   const selectedFieldId = useFleet((s) => s.selectedFieldId);
   const selectField = useFleet((s) => s.selectField);
@@ -408,7 +380,7 @@ function FieldsTab() {
                   className={`w-full text-left py-[9px] px-3 border-l-[3px] ${
                     selected
                       ? "bg-[#F0FDF4] border-primary"
-                      : "border-transparent hover:bg-[#F8FAFC]"
+                      : "border-transparent hover:bg-muted"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -432,24 +404,5 @@ function FieldsTab() {
         </ul>
       )}
     </div>
-  );
-}
-
-function TabBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 text-center pb-1 ${active ? "text-t1 border-b-2 border-primary" : "text-t2"}`}
-    >
-      {children}
-    </button>
   );
 }

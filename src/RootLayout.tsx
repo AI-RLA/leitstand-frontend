@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { Header } from "@/features/fleet/Header";
 import { Footer } from "@/features/fleet/Footer";
+import { SidePanel } from "@/components/layout/SidePanel";
 import { api } from "./api/client";
 import { useFleet } from "./stores/fleet";
 import { connectWs } from "./ws/client";
@@ -30,8 +31,13 @@ export function RootLayout() {
   return (
     <div className="h-screen flex flex-col">
       <Header />
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
+      {/* A sibling of the route, not part of it, so a streaming turn and a pending approval
+          survive navigation instead of unmounting with the page that opened them. */}
+      <main className="flex-1 flex overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <Outlet />
+        </div>
+        <SidePanel />
       </main>
       <Footer />
     </div>
