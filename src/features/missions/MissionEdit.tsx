@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import { useMission, useUpdateMission } from "@/api/missions";
 import { useSites } from "@/api/sites";
 import type { Mission, NavigationStageInput } from "@/api/client";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { MissionStageList } from "./components/MissionStageList";
@@ -44,37 +45,42 @@ function totalWaypoints(stages: StageDraft[]): number {
 }
 
 function stagesToDrafts(stages: Mission["stages"]): StageDraft[] {
-  return stages.map((s) => {
-    const first = s.waypoints[0];
-    const frame: WaypointFrame =
-      first?.kind === "site_local" ? "site_local" : "wgs84";
-    const site_id = first?.kind === "site_local" ? first.site_id : "";
-    return {
-      kind: "navigation",
-      frame,
-      site_id,
-      waypoints: s.waypoints.map(
-        (w): WaypointDraft =>
-          w.kind === "wgs84"
-            ? {
-                lat: String(w.lat),
-                lon: String(w.lon),
-                heading_deg: w.heading_deg != null ? String(w.heading_deg) : "",
-                x: "",
-                y: "",
-                theta: "",
-              }
-            : {
-                lat: "",
-                lon: "",
-                heading_deg: "",
-                x: String(w.x),
-                y: String(w.y),
-                theta: w.theta != null ? String(w.theta) : "",
-              },
-      ),
-    };
-  });
+  // Navigation stages only. A coverage stage is derived from a field boundary rather than typed,
+  // so editing its waypoints by hand would silently break the relationship the plan records.
+  return stages
+    .filter((s) => s.kind === "navigation")
+    .map((s) => {
+      const first = s.waypoints[0];
+      const frame: WaypointFrame =
+        first?.kind === "site_local" ? "site_local" : "wgs84";
+      const site_id = first?.kind === "site_local" ? first.site_id : "";
+      return {
+        kind: "navigation",
+        frame,
+        site_id,
+        waypoints: s.waypoints.map(
+          (w): WaypointDraft =>
+            w.kind === "wgs84"
+              ? {
+                  lat: String(w.lat),
+                  lon: String(w.lon),
+                  heading_deg:
+                    w.heading_deg != null ? String(w.heading_deg) : "",
+                  x: "",
+                  y: "",
+                  theta: "",
+                }
+              : {
+                  lat: "",
+                  lon: "",
+                  heading_deg: "",
+                  x: String(w.x),
+                  y: String(w.y),
+                  theta: w.theta != null ? String(w.theta) : "",
+                },
+        ),
+      };
+    });
 }
 
 interface Props {
@@ -308,12 +314,33 @@ export function MissionEdit({ id }: Props) {
     );
   }
 
+  // Refused here as well as at the link, because the route is directly navigable. The form holds
+  // only what it can express, and saving replaces every stage, so what it dropped would be lost.
+  if (mission.stages.some((s) => s.kind !== "navigation")) {
+    return (
+      <EmptyState
+        className="h-48 justify-center"
+        title="This mission was planned, not typed"
+        hint="Its stages come from a field boundary. Plan it again to change them."
+        action={
+          <Link
+            to="/missions/$id"
+            params={{ id }}
+            className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] transition-colors"
+          >
+            Back to mission
+          </Link>
+        }
+      />
+    );
+  }
+
   const totalWp = totalWaypoints(stages);
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="h-full flex overflow-hidden bg-[#F8FAFC]"
+      className="h-full flex overflow-hidden bg-muted"
     >
       {/* Left form pane */}
       <div className="w-[520px] shrink-0 flex flex-col border-r border-border bg-white">

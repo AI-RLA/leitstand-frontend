@@ -75,6 +75,12 @@ const VERB: Record<string, { label: string; consequence: string; tone: Tone }> =
       consequence: "Returns a failed or cancelled mission to draft.",
       tone: "warn",
     },
+    plan_coverage_mission: {
+      label: "Plan coverage of",
+      consequence:
+        "Derives a path over the whole field and adds it as a draft mission. Nothing drives until you dispatch it.",
+      tone: "warn",
+    },
     create_field: {
       label: "Create field",
       consequence: "Adds a new field to the catalog.",
@@ -157,13 +163,26 @@ export function ApprovalCard({
   approval: PendingApproval;
   onDecide: (approvalId: string, approved: boolean) => void;
 }) {
-  const config = VERB[approval.toolName] ?? {
+  const args = flattenArgs(approval.input);
+  const base = VERB[approval.toolName] ?? {
     label: approval.toolName,
     consequence: "Changes the fleet.",
     tone: "warn" as Tone,
   };
+  // Planning that supersedes deletes the mission it replaces, and a path is re-derived rather
+  // than edited, so that deletion is the ordinary way a plan is changed and the easiest thing on
+  // this card to approve without noticing. The base entry cannot carry it: without `replaces` the
+  // same verb destroys nothing.
+  const config =
+    approval.toolName === "plan_coverage_mission" && str(args.replaces)
+      ? {
+          ...base,
+          consequence:
+            "Derives a new path and permanently deletes the plan it replaces. This cannot be undone.",
+          tone: "destructive" as Tone,
+        }
+      : base;
   const tone = TONE[config.tone];
-  const args = flattenArgs(approval.input);
   const decided = approval.decision !== undefined;
   const target = useTargetResolution(approval.toolName, args);
   // Approving is held back until the target is known to exist. Denying never is: refusing an
@@ -181,7 +200,17 @@ export function ApprovalCard({
       </div>
 
       <NamedTarget label={config.label} resolution={target} />
-      <p className="mt-1 text-ui-sm text-t3">{config.consequence}</p>
+      {/* An irreversible consequence is not a footnote. At the muted tier it renders quieter and
+          smaller than the target's own name directly above it, which puts the least emphasis on
+          the only sentence that says the action cannot be taken back. Full strength rather than
+          red: the border, ground and icon already carry the alarm. */}
+      <p
+        className={`mt-1 text-ui-sm ${
+          config.tone === "destructive" ? "font-medium text-t1" : "text-t3"
+        }`}
+      >
+        {config.consequence}
+      </p>
 
       <Proposal toolName={approval.toolName} args={args} />
 
@@ -204,7 +233,7 @@ export function ApprovalCard({
           <button
             type="button"
             onClick={() => onDecide(approval.approvalId, false)}
-            className="rounded-md border border-border px-3 py-1 text-ui-sm font-medium text-t2 transition-colors hover:border-border-strong hover:bg-[#F8FAFC]"
+            className="rounded-md border border-border px-3 py-1 text-ui-sm font-medium text-t2 transition-colors hover:border-border-strong hover:bg-muted"
           >
             Deny
           </button>
@@ -238,6 +267,8 @@ function Proposal({
 }) {
   if (toolName === "create_mission" || toolName === "update_mission")
     return <MissionProposal args={args} />;
+  if (toolName === "plan_coverage_mission")
+    return <CoverageProposal args={args} />;
 
   const rest = Object.entries(args).filter(
     ([key, value]) => !IDENTITY_ARGS.has(key) && value !== undefined,
@@ -331,6 +362,139 @@ function Boundary({ label, polygon }: { label: string; polygon: Polygon }) {
 }
 
 /** A mission's model-authored scalars stay visible; its geometry sits behind labeled expanders. */
+/**
+ * What a coverage plan would be laid out from, and where each value came from.
+ *
+ * The path does not exist yet, so there is no geometry to show and nothing to check it against.
+ * What can be checked is the inputs, and the ones that decide whether the machine leaves the
+ * field are precisely those the assistant does not send: left out, they are taken from the
+ * robot's own declaration, and an operator reading the arguments alone would never learn they
+ * were applied. Naming each value's origin is what separates a number the assistant chose, which
+ * needs scrutiny, from one the machine declared, which does not.
+ */
+function CoverageProposal({ args }: { args: Record<string, unknown> }) {
+  const robotId = str(args.robot_id);
+  const robots = useRobots();
+  const robot = robotId
+    ? (robots.data ?? []).find((r) => r.id === robotId)
+    : undefined;
+  const radius = robot?.factsheet?.physical_parameters?.min_turning_radius_m;
+  const headland = args.headland_width_m;
+  const angle = args.swath_angle_deg;
+  const replaces = str(args.replaces);
+  // Named rather than measured: how far a turn actually reaches is the planner's to compute and
+  // report, and a browser estimating it would be guessing at the plan it has not seen.
+  const shallow =
+    radius !== undefined && typeof headland === "number" && headland < radius;
+  return (
+    <>
+      {/* Ordered as an operator reads it: what this will be called, then the machine, then what
+          the pattern will and will not cover. The name appears only when the assistant chose one
+          instead of the field's, so the once it shows is the once it is worth reading first. The
+          turning radius is not a row because nobody can change it; it belongs to the headland as
+          the evidence for it. */}
+      <dl className="mt-2 space-y-1.5">
+        {str(args.name) !== undefined && (
+          <Field label="Name" value={args.name} />
+        )}
+        {str(args.description) !== undefined && (
+          <Field label="Description" value={args.description} />
+        )}
+        <Detail label="Working width" value={metres(args.operation_width_m)} />
+        <Detail
+          label="Headland width"
+          value={headland === undefined ? metres(radius) : metres(headland)}
+          note={
+            radius === undefined
+              ? undefined
+              : headland === undefined
+                ? `not specified, so ${robotId ?? "the robot"}'s turning radius`
+                : shallow
+                  ? `shallower than the ${radius} m ${robotId ?? "the robot"} needs to turn, so turns will leave the field`
+                  : `${robotId ?? "the robot"} turns at ${radius} m`
+          }
+          tone={shallow ? "warn" : undefined}
+        />
+        <Detail
+          label="Last pass"
+          value={
+            args.allow_overlap === true
+              ? "overlaps the one before it to cover the remainder"
+              : "leaves the remainder unworked"
+          }
+        />
+        <Detail
+          label="Swath angle"
+          value={angle === undefined ? "not specified" : `${verbatim(angle)}°`}
+        />
+      </dl>
+      {replaces !== undefined && <Superseded missionId={replaces} />}
+    </>
+  );
+}
+
+/** Render a supplied measurement with its unit, and an absent one as a stated absence. */
+function metres(value: unknown): string {
+  return typeof value === "number" ? `${value} m` : "not declared";
+}
+
+function Detail({
+  label,
+  value,
+  note,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  tone?: "warn";
+}) {
+  return (
+    <div className="grid grid-cols-[7rem_1fr] items-baseline gap-x-3 text-ui-sm">
+      <dt className="text-ui-xs text-t3">{label}</dt>
+      {/* The note sits inside the value it qualifies, so it reads as belonging to that row rather
+          than as a label of its own. */}
+      <dd className="min-w-0 text-t1">
+        {value}
+        {note ? (
+          <span
+            className={`mt-0.5 block text-ui-xs ${tone === "warn" ? "font-medium text-[#B45309]" : "text-t2"}`}
+          >
+            {note}
+          </span>
+        ) : null}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * The mission this plan would delete, resolved rather than named by id.
+ *
+ * Set apart from the inputs because it is not one: it is a second action riding the same
+ * approval, and it is irreversible.
+ */
+function Superseded({ missionId }: { missionId: string }) {
+  const mission = useMission(missionId);
+  return (
+    <div className="mt-2 rounded-md border border-[#FECACA] bg-white px-2.5 py-2">
+      <p className="text-ui-sm text-t1">
+        Deletes{" "}
+        <span className="font-medium">{mission.data?.name ?? missionId}</span>
+        {mission.data?.status ? (
+          <span className="text-t3"> ({mission.data.status})</span>
+        ) : null}
+        , the plan this one supersedes.
+      </p>
+      <p className="mt-0.5 text-ui-xs text-t3">
+        {mission.isError
+          ? "That mission could not be found, so this may delete nothing, or delete something else."
+          : "Permanently. This cannot be undone."}
+      </p>
+    </div>
+  );
+}
+
 function MissionProposal({ args }: { args: Record<string, unknown> }) {
   const named = new Set(["name", "description", "stages"]);
   // Anything the API grows later still reaches the operator rather than vanishing because no
@@ -558,9 +722,9 @@ function summarise(value: unknown): string {
 function Field({ label, value }: { label: string; value: unknown }) {
   if (isInline(value))
     return (
-      <div className="flex gap-2 text-ui-sm">
-        <dt className="shrink-0 font-mono text-ui-xs text-t3">{label}</dt>
-        <dd className="break-words text-t1">{verbatim(value)}</dd>
+      <div className="grid grid-cols-[7rem_1fr] items-baseline gap-x-3 text-ui-sm">
+        <dt className="font-mono text-ui-xs text-t3">{label}</dt>
+        <dd className="min-w-0 break-words text-t1">{verbatim(value)}</dd>
       </div>
     );
   return (
@@ -582,6 +746,13 @@ function expanded(value: unknown): string {
 type Resolution = {
   name: string;
   meta?: string;
+  /**
+   * The robot the proposal itself names, kept out of the target's own parenthetical.
+   *
+   * A coverage plan acts on a field and names a machine, which are two entities rather than one
+   * described by the other, so folding the robot in would read as an attribute of the field.
+   */
+  robot?: { id: string; state?: string };
   /** The backend was asked about this id and could not answer. */
   unresolved: boolean;
   /** The answer has not arrived yet. */
@@ -616,31 +787,48 @@ function useTargetResolution(
   // between an id that reads plausibly and one that exists.
   const robots = useRobots();
 
+  const named = robotId
+    ? (robots.data ?? []).find((r) => r.id === robotId)
+    : undefined;
+  // Status and battery belong here because acting on an offline or nearly-flat robot is exactly
+  // the mistake this gate exists to catch, and the fleet view already has the answer.
+  const proposedRobot = robotId
+    ? {
+        id: robotId,
+        state: named
+          ? `${named.status}${
+              named.battery ? `, ${Math.round(named.battery.battery_pct)}%` : ""
+            }`
+          : undefined,
+      }
+    : undefined;
+  const robotUnresolved = Boolean(robotId) && !robots.isPending && !named;
+  const robotResolving = Boolean(robotId) && robots.isPending;
+
   if (missionId) {
-    const named = robotId
-      ? (robots.data ?? []).find((r) => r.id === robotId)
-      : undefined;
-    // Status and battery belong here because dispatching to an offline or nearly-flat robot is
-    // exactly the mistake this gate exists to catch, and the fleet view already has the answer.
-    const robotMeta = named
-      ? `${named.id} (${named.status}${
-          named.battery ? `, ${Math.round(named.battery.battery_pct)}%` : ""
-        })`
-      : (robotId ?? mission.data?.robot_id);
-    const meta = [mission.data?.status, robotMeta].filter(Boolean).join(", ");
+    // The mission's own robot is named here only when the proposal does not name one itself,
+    // since a robot the operator is being asked to commit to is not the same fact as the one the
+    // mission already holds.
+    const meta = [mission.data?.status, robotId ? null : mission.data?.robot_id]
+      .filter(Boolean)
+      .join(", ");
     return {
       name: mission.data?.name ?? missionId,
       meta: meta || undefined,
-      unresolved:
-        mission.isError || (Boolean(robotId) && !robots.isPending && !named),
-      resolving: mission.isPending || (Boolean(robotId) && robots.isPending),
+      robot: proposedRobot,
+      unresolved: mission.isError || robotUnresolved,
+      resolving: mission.isPending || robotResolving,
     };
   }
   if (fieldId)
+    // A field-targeted verb may still name a robot, as planning coverage does. Resolving it here
+    // too is what keeps the machine visible: it is stripped from the argument list as an identity,
+    // so if this does not show it, nothing does.
     return {
       name: field.data?.name ?? fieldId,
-      unresolved: field.isError,
-      resolving: field.isPending,
+      robot: proposedRobot,
+      unresolved: field.isError || robotUnresolved,
+      resolving: field.isPending || robotResolving,
     };
   if (siteId)
     return {
@@ -675,6 +863,15 @@ function NamedTarget({
         {label} <span className="font-medium">{resolution.name}</span>
         {resolution.meta ? (
           <span className="text-t3"> ({resolution.meta})</span>
+        ) : null}
+        {resolution.robot ? (
+          <>
+            {" for "}
+            <span className="font-medium">{resolution.robot.id}</span>
+            {resolution.robot.state ? (
+              <span className="text-t3"> ({resolution.robot.state})</span>
+            ) : null}
+          </>
         ) : null}
         .
       </p>

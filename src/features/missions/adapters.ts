@@ -7,6 +7,7 @@ import type {
   StageStatus,
 } from "@/api/client";
 import { haversineMeters } from "@/lib/geo";
+import { stageDrivenWaypoints, stageWaypoints } from "./stageWaypoints";
 
 export type MissionLifecycleBucket =
   | "running"
@@ -42,6 +43,8 @@ export interface StageViewModel {
   id: string;
   index: number;
   waypointCount: number;
+  // Absent on a stage that is not coverage, where swaths mean nothing.
+  swathCount: number | null;
   distanceM: number | null;
   // Widen to string (the schema literal is "navigation" today) so the timeline
   // can label future non-navigation kinds without a type change here.
@@ -73,7 +76,7 @@ export interface MissionViewModel {
   dispatchedAt: string | null;
 }
 
-type Waypoint = Mission["stages"][number]["waypoints"][number];
+type Waypoint = ReturnType<typeof stageWaypoints>[number];
 
 function stageDistance(waypoints: Waypoint[]): number | null {
   if (waypoints.length < 2) return 0;
@@ -124,19 +127,24 @@ export function toMissionViewModel(
     // The backend resolves and serves per-stage status (incl. CANCELLED/SKIPPED);
     // render it directly. A stage with no served entry defaults to WAITING.
     const runtime = runtimeByStageId.get(s.stage_id) ?? null;
+    const waypoints = stageWaypoints(s);
     return {
       id: s.stage_id,
       index: i,
-      waypointCount: s.waypoints.length,
-      distanceM: stageDistance(s.waypoints),
+      waypointCount: waypoints.length,
+      swathCount:
+        s.kind === "coverage"
+          ? s.segments.filter((seg) => seg.kind === "swath").length
+          : null,
+      distanceM: stageDistance(stageDrivenWaypoints(s)),
       kind: s.kind,
-      frame: stageFrame(s.waypoints),
+      frame: stageFrame(waypoints),
       status: runtime?.status ?? "WAITING",
       progress: runtime?.progress ?? null,
       startedAt: runtime?.started_at ?? null,
       endedAt: runtime?.ended_at ?? null,
       errors: runtime?.errors ?? [],
-      waypoints: s.waypoints,
+      waypoints,
     };
   });
 

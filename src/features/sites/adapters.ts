@@ -1,4 +1,5 @@
 import type { Mission, Site } from "@/api/client";
+import { stageWaypoints } from "@/features/missions/stageWaypoints";
 
 export interface SiteViewModel {
   id: string;
@@ -23,7 +24,7 @@ function stagesReferenceSite(
   siteId: string,
 ): boolean {
   for (const stage of stages) {
-    for (const w of stage.waypoints) {
+    for (const w of stageWaypoints(stage)) {
       if (w.kind === "site_local" && w.site_id === siteId) return true;
     }
     if (stage.on_cancel && stagesReferenceSite(stage.on_cancel, siteId)) {

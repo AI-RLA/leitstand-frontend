@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadBasemap } from "@/stores/mapView";
@@ -8,19 +8,90 @@ import {
 } from "@/components/map/BasemapControl.constants";
 import { BasemapControl } from "@/components/map/BasemapControl";
 import { useFleet } from "@/stores/fleet";
+import { fieldBbox, toFieldGeoJSON } from "@/components/map/fieldUtils";
 import { anchorFromSite, localToLatLon } from "../siteFrame";
-import type { Mission, MissionState, Site, StageStateView } from "@/api/client";
+import { stageDrivenWaypoints, stageWaypoints } from "../stageWaypoints";
+import type {
+  Field,
+  Mission,
+  MissionState,
+  Site,
+  StageStateView,
+} from "@/api/client";
 
 interface MissionPathPreviewProps {
   mission: Mission;
   state: MissionState | null;
   sites: Site[];
+  /** Boundary this mission was planned over, drawn under the path so the two can be compared. */
+  field?: Field | null;
 }
 
 interface StagePath {
   stageIndex: number;
   status: StageStateView["status"] | "PENDING";
-  coords: [number, number][]; // [lng, lat]
+  /** The line actually driven, turns included. [lng, lat] */
+  line: [number, number][];
+  /** The waypoints the plan names, which is far fewer points than the line is sampled at. */
+  marks: [number, number][];
+}
+
+const STATUS_COLOR = {
+  FINISHED: "#16A34A",
+  RUNNING: "#16A34A",
+  INITIALIZING: "#16A34A",
+  PAUSED: "#F59E0B",
+  FAILED: "#EF4444",
+} as const;
+const STATUS_COLOR_PENDING = "#94A3B8";
+const ENDPOINT_DARK = "#475569";
+
+function statusColor(status: StagePath["status"]): string {
+  return status in STATUS_COLOR
+    ? STATUS_COLOR[status as keyof typeof STATUS_COLOR]
+    : STATUS_COLOR_PENDING;
+}
+
+// Derived from the layer spec rather than imported: the expression type lives in the style-spec
+// package, which maplibre-gl depends on but does not re-export.
+type CircleColor = NonNullable<
+  Extract<maplibregl.LayerSpecification, { type: "circle" }>["paint"]
+>["circle-color"];
+
+const STATUS_MATCH: CircleColor = [
+  "match",
+  ["get", "status"],
+  "FINISHED",
+  STATUS_COLOR.FINISHED,
+  "RUNNING",
+  STATUS_COLOR.RUNNING,
+  "INITIALIZING",
+  STATUS_COLOR.INITIALIZING,
+  "PAUSED",
+  STATUS_COLOR.PAUSED,
+  "FAILED",
+  STATUS_COLOR.FAILED,
+  STATUS_COLOR_PENDING,
+];
+
+type Waypoint = ReturnType<typeof stageWaypoints>[number];
+
+function toCoords(waypoints: Waypoint[], sites: Site[]): [number, number][] {
+  const coords: [number, number][] = [];
+  for (const w of waypoints) {
+    if (w.kind === "wgs84") {
+      if (Number.isFinite(w.lat) && Number.isFinite(w.lon)) {
+        coords.push([w.lon, w.lat]);
+      }
+    } else if (w.kind === "site_local") {
+      const site = sites.find((s) => s.site_id === w.site_id);
+      if (site) {
+        const ll = localToLatLon(anchorFromSite(site), w.x, w.y);
+        coords.push([ll.lon, ll.lat]);
+      }
+    }
+  }
+  return coords;
 }
 
 function resolveStagePaths(
@@ -35,43 +106,69 @@ function resolveStagePaths(
   const out: StagePath[] = [];
   for (let si = 0; si < stages.length; si++) {
     const stage = stages[si];
-    const coords: [number, number][] = [];
-    for (const w of stage.waypoints) {
-      if (w.kind === "wgs84") {
-        if (Number.isFinite(w.lat) && Number.isFinite(w.lon)) {
-          coords.push([w.lon, w.lat]);
-        }
-      } else if (w.kind === "site_local") {
-        const site = sites.find((s) => s.site_id === w.site_id);
-        if (site) {
-          const ll = localToLatLon(anchorFromSite(site), w.x, w.y);
-          coords.push([ll.lon, ll.lat]);
-        }
-      }
-    }
+    const marks = toCoords(stageWaypoints(stage), sites);
+    // A coverage stage's swaths name only the ends of each pass, so joining those alone draws
+    // straight chords where the machine will drive curves, and hides the swing outside the
+    // boundary that the turn radius forces. The whole route, turns included, is the line driven.
+    const line =
+      stage.kind === "coverage"
+        ? toCoords(stageDrivenWaypoints(stage), sites)
+        : marks;
     out.push({
       stageIndex: si,
       status: byId.get(stage.stage_id)?.status ?? "PENDING",
-      coords,
+      line,
+      marks,
     });
   }
   return out;
 }
 
-function boundsOf(paths: StagePath[]): maplibregl.LngLatBoundsLike | null {
+/**
+ * Locate the mission's first and last waypoint, keyed `"<stageIndex>:<waypointIndex>"`.
+ *
+ * The route runs across stages, so the endpoints are the mission's rather than each stage's.
+ * Stages resolving to no coordinates cannot claim one, and a lone waypoint is a start only.
+ */
+function endpointKeys(paths: StagePath[]): {
+  start: string | null;
+  end: string | null;
+} {
+  const drawn = paths.filter((p) => p.marks.length > 0);
+  if (drawn.length === 0) return { start: null, end: null };
+  const first = drawn[0];
+  const last = drawn[drawn.length - 1];
+  const start = `${first.stageIndex}:0`;
+  const end = `${last.stageIndex}:${last.marks.length - 1}`;
+  return { start, end: end === start ? null : end };
+}
+
+function boundsOf(
+  paths: StagePath[],
+  field: Field | null | undefined,
+): maplibregl.LngLatBoundsLike | null {
   let minLon = Infinity;
   let maxLon = -Infinity;
   let minLat = Infinity;
   let maxLat = -Infinity;
   let count = 0;
+  const include = (lon: number, lat: number) => {
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    count++;
+  };
   for (const p of paths) {
-    for (const [lon, lat] of p.coords) {
-      if (lon < minLon) minLon = lon;
-      if (lon > maxLon) maxLon = lon;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      count++;
-    }
+    for (const [lon, lat] of p.line) include(lon, lat);
+  }
+  // Framing both together is what makes a misplaced path visible: a path drawn far from the field
+  // it claims to cover zooms the view out until the gap is the obvious thing on screen, where
+  // fitting the path alone would show a plausible-looking route and no field at all.
+  if (field) {
+    const [[fMinLon, fMinLat], [fMaxLon, fMaxLat]] = fieldBbox(field.geometry);
+    include(fMinLon, fMinLat);
+    include(fMaxLon, fMaxLat);
   }
   if (count === 0) return null;
   return [
@@ -80,7 +177,52 @@ function boundsOf(paths: StagePath[]): maplibregl.LngLatBoundsLike | null {
   ];
 }
 
+// Listed before the path layers so the boundary renders beneath them.
+const FIELD_LAYERS: maplibregl.LayerSpecification[] = [
+  {
+    id: "mp-field-fill",
+    type: "fill",
+    source: "mp-field",
+    paint: { "fill-color": "#16A34A", "fill-opacity": 0.1 },
+  },
+  {
+    id: "mp-field-outline",
+    type: "line",
+    source: "mp-field",
+    paint: { "line-color": "#16A34A", "line-width": 1.5, "line-opacity": 0.6 },
+  },
+  // Where the headland begins, and so where the swaths had to stop. Solid, uncased and in the
+  // field's own green: dashes and a casing are how this map draws a driven path, and the mainland
+  // is not driven, it is part of the field. Read together with the outline it sits inside, the two
+  // lines make the headland legible as the margin it is.
+  {
+    id: "mp-mainland-outline",
+    type: "line",
+    source: "mp-mainland",
+    paint: {
+      "line-color": "#16A34A",
+      "line-width": 1.25,
+      "line-opacity": 0.55,
+    },
+  },
+];
+
 const PATH_LAYERS: maplibregl.LayerSpecification[] = [
+  // Casing under every path. A line has no stroke of its own, and orthophotos give a thin one
+  // nothing to read against; a soft wider line beneath separates it from grass, tarmac and shadow
+  // alike, where widening or brightening the path itself would only work over dark ground.
+  {
+    id: "mp-path-casing",
+    type: "line",
+    source: "mp-paths",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: {
+      "line-color": "#fff",
+      "line-width": 6,
+      "line-opacity": 0.5,
+      "line-blur": 1,
+    },
+  },
   {
     id: "mp-path-pending",
     type: "line",
@@ -91,10 +233,9 @@ const PATH_LAYERS: maplibregl.LayerSpecification[] = [
       ["literal", ["PENDING", "WAITING", "CANCELLED", "SKIPPED"]],
     ],
     paint: {
-      "line-color": "#94A3B8",
-      "line-width": 2,
+      "line-color": "#64748B",
+      "line-width": 2.5,
       "line-dasharray": [3, 2],
-      "line-opacity": 0.85,
     },
   },
   {
@@ -132,23 +273,46 @@ const PATH_LAYERS: maplibregl.LayerSpecification[] = [
     source: "mp-waypoints",
     paint: {
       "circle-radius": 4,
-      "circle-color": [
-        "match",
-        ["get", "status"],
-        "FINISHED",
-        "#16A34A",
-        "RUNNING",
-        "#16A34A",
-        "INITIALIZING",
-        "#16A34A",
-        "PAUSED",
-        "#F59E0B",
-        "FAILED",
-        "#EF4444",
-        "#94A3B8",
-      ],
+      "circle-color": STATUS_MATCH,
       "circle-stroke-color": "#fff",
       "circle-stroke-width": 1.5,
+    },
+  },
+  // Light origin, dark destination, as a route reads on any map. Tone rather than size tells them
+  // apart, so the ends stay the scale of the waypoints they belong to. The destination forgoes the
+  // status colour for that darkness, which the path and the dots either side of it still carry.
+  {
+    id: "mp-waypoint-endpoints",
+    type: "circle",
+    source: "mp-waypoints",
+    filter: ["in", ["get", "role"], ["literal", ["start", "end"]]],
+    paint: {
+      "circle-radius": 5,
+      "circle-color": [
+        "case",
+        ["==", ["get", "role"], "end"],
+        ENDPOINT_DARK,
+        "#fff",
+      ],
+      "circle-stroke-color": [
+        "case",
+        ["==", ["get", "role"], "end"],
+        "#fff",
+        STATUS_MATCH,
+      ],
+      "circle-stroke-width": ["case", ["==", ["get", "role"], "end"], 1.5, 2],
+    },
+  },
+  // Hover target, wider than the mark it belongs to because a 5px dot is hard to point at.
+  {
+    id: "mp-endpoint-hit",
+    type: "circle",
+    source: "mp-waypoints",
+    filter: ["in", ["get", "role"], ["literal", ["start", "end"]]],
+    paint: {
+      "circle-radius": 13,
+      "circle-color": "#fff",
+      "circle-opacity": 0.01,
     },
   },
   {
@@ -174,8 +338,39 @@ const PATH_LAYERS: maplibregl.LayerSpecification[] = [
   },
 ];
 
+/**
+ * Build the endpoint label, one pill reused for whichever end the pointer is over.
+ *
+ * White is the only fill that holds against both the orthophoto and the street basemap. Shown on
+ * hover alone, since the dots already mark the ends and a pinned label would cover the geometry.
+ */
+function createEndpointLabel(): HTMLDivElement {
+  const el = document.createElement("div");
+  el.style.cssText = `
+    display: none; align-items: center; gap: 5px;
+    padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+    background: #fff; border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.18);
+    font: 600 10px/1 'DM Sans', sans-serif;
+    letter-spacing: 0.06em; text-transform: uppercase; color: #475569;
+    pointer-events: none;
+  `;
+  const dot = document.createElement("span");
+  dot.style.cssText = "width: 6px; height: 6px; border-radius: 50%;";
+  el.append(dot, document.createElement("span"));
+  return el;
+}
+
 const SOURCES: Record<string, maplibregl.SourceSpecification> = {
   ...MAP_SOURCES,
+  "mp-field": {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  },
+  "mp-mainland": {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  },
   "mp-paths": {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -194,16 +389,26 @@ export function MissionPathPreview({
   mission,
   state,
   sites,
+  field,
 }: MissionPathPreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const fittedRef = useRef(false);
+
+  // The mainland: the field less its headland, as the planner cut it. Comes with the mission
+  // rather than from the field, because the field can be edited after a plan is made.
+  const mainland = mission.coverage?.mainland_boundary ?? null;
 
   // Live robot pose from the fleet WS stream (null when no robot assigned,
   // robot is offline, or first pose hasn't arrived yet).
   const robotId = mission.robot_id;
   const robotPose = useFleet((s) =>
     robotId ? (s.robots[robotId]?.pose ?? null) : null,
+  );
+
+  const paths = useMemo(
+    () => resolveStagePaths(mission.stages, state?.stage_states, sites),
+    [mission, state, sites],
   );
 
   // One-time map init.
@@ -214,10 +419,10 @@ export function MissionPathPreview({
       style: {
         version: 8,
         sources: SOURCES,
-        layers: [...baseLayers(loadBasemap()), ...PATH_LAYERS],
+        layers: [...baseLayers(loadBasemap()), ...FIELD_LAYERS, ...PATH_LAYERS],
       },
       center: [8.020798, 52.286366],
-      zoom: 14,
+      zoom: 15,
       attributionControl: false,
     });
     m.addControl(
@@ -232,67 +437,156 @@ export function MissionPathPreview({
     };
   }, []);
 
+  // The route swaps the id without remounting, so the one-time fit has to be re-armed or the next
+  // mission inherits the previous one's viewport.
+  useEffect(() => {
+    fittedRef.current = false;
+  }, [mission.mission_id]);
+
   // Data updates + initial fit-bounds.
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
 
+    // False until the style has been parsed and the sources exist. Gating on that rather than on
+    // the map reporting itself loaded, which also waits on every tile and so can stay false for as
+    // long as the imagery is slow, leaving the geometry undrawn.
     const apply = () => {
-      const paths = resolveStagePaths(
-        mission.stages,
-        state?.stage_states,
-        sites,
-      );
+      const fieldSource = m.getSource("mp-field") as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      const mainlandSource = m.getSource("mp-mainland") as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      const pathSource = m.getSource("mp-paths") as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      const pointSource = m.getSource("mp-waypoints") as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (!fieldSource || !pathSource || !pointSource) return false;
 
       const lineFeatures = paths
-        .filter((p) => p.coords.length >= 2)
+        .filter((p) => p.line.length >= 2)
         .map((p) => ({
           type: "Feature" as const,
           geometry: {
             type: "LineString" as const,
-            coordinates: p.coords,
+            coordinates: p.line,
           },
           properties: { stageIndex: p.stageIndex, status: p.status },
         }));
 
+      const ends = endpointKeys(paths);
       const pointFeatures = paths.flatMap((p) =>
-        p.coords.map((c, wi) => ({
-          type: "Feature" as const,
-          geometry: { type: "Point" as const, coordinates: c },
-          properties: {
-            stageIndex: p.stageIndex,
-            waypointIndex: wi,
-            status: p.status,
-          },
-        })),
+        p.marks.map((c, wi) => {
+          const key = `${p.stageIndex}:${wi}`;
+          return {
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: c },
+            properties: {
+              stageIndex: p.stageIndex,
+              waypointIndex: wi,
+              status: p.status,
+              role:
+                key === ends.start ? "start" : key === ends.end ? "end" : "mid",
+            },
+          };
+        }),
       );
 
-      (
-        m.getSource("mp-paths") as maplibregl.GeoJSONSource | undefined
-      )?.setData({ type: "FeatureCollection", features: lineFeatures });
-      (
-        m.getSource("mp-waypoints") as maplibregl.GeoJSONSource | undefined
-      )?.setData({ type: "FeatureCollection", features: pointFeatures });
+      fieldSource.setData(toFieldGeoJSON(field ? [field] : []));
+      mainlandSource?.setData({
+        type: "FeatureCollection",
+        features: mainland
+          ? [
+              {
+                type: "Feature",
+                // Rebuilt rather than passed through: the generated type allows a null bbox,
+                // which the GeoJSON types this map is written against do not.
+                geometry: {
+                  type: "Polygon",
+                  coordinates: mainland.coordinates as GeoJSON.Position[][],
+                },
+                properties: {},
+              },
+            ]
+          : [],
+      });
+      pathSource.setData({ type: "FeatureCollection", features: lineFeatures });
+      pointSource.setData({
+        type: "FeatureCollection",
+        features: pointFeatures,
+      });
 
-      // Fit bounds once after first data load (before any user interaction).
+      // Fit bounds once after first data load, before any user interaction. The ceiling binds
+      // only on fields small enough to fit inside it, and a field of a few hundred square metres
+      // is one: capped at the last zoom OSM publishes, it lands as a stamp in the middle of the
+      // view. Past that the raster source upscales its own tiles, which is soft but legible, and
+      // the orthophoto layer is a WMS with no tile ceiling at all.
       if (!fittedRef.current) {
-        const b = boundsOf(paths);
+        const b = boundsOf(paths, field);
         if (b) {
-          m.fitBounds(b, { padding: 30, duration: 0, maxZoom: 18 });
+          m.fitBounds(b, { padding: 30, duration: 0, maxZoom: 20 });
           fittedRef.current = true;
         }
       }
+      return true;
     };
 
-    if (m.loaded()) {
-      apply();
-    } else {
-      m.once("load", apply);
-      return () => {
-        m.off("load", apply);
-      };
-    }
-  }, [mission, state, sites]);
+    if (apply()) return;
+    // Retried rather than waited on `load`, which fires once per map: a mission opened after it
+    // would wait on an event already past and keep the previous mission's geometry.
+    const onStyleData = () => {
+      if (apply()) m.off("styledata", onStyleData);
+    };
+    m.on("styledata", onStyleData);
+    return () => {
+      m.off("styledata", onStyleData);
+    };
+  }, [paths, field, mainland]);
+
+  // HTML rather than a symbol layer: the style carries no glyph source, so text would not draw.
+  // Bound once, since the label belongs to the map rather than to any one data frame.
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    const el = createEndpointLabel();
+    const marker = new maplibregl.Marker({
+      element: el,
+      anchor: "bottom",
+      offset: [0, -10],
+    })
+      .setLngLat([0, 0])
+      .addTo(m);
+
+    const show = (e: maplibregl.MapLayerMouseEvent) => {
+      const feature = e.features?.[0];
+      if (!feature || feature.geometry.type !== "Point") return;
+      const role = feature.properties?.role;
+      if (role !== "start" && role !== "end") return;
+      const dot = el.firstElementChild as HTMLElement;
+      const text = el.lastElementChild as HTMLElement;
+      dot.style.background =
+        role === "end"
+          ? ENDPOINT_DARK
+          : statusColor(feature.properties?.status as StagePath["status"]);
+      text.textContent = role === "start" ? "Start" : "End";
+      marker.setLngLat(feature.geometry.coordinates as [number, number]);
+      el.style.display = "flex";
+    };
+    const hide = () => {
+      el.style.display = "none";
+    };
+
+    m.on("mousemove", "mp-endpoint-hit", show);
+    m.on("mouseleave", "mp-endpoint-hit", hide);
+    return () => {
+      m.off("mousemove", "mp-endpoint-hit", show);
+      m.off("mouseleave", "mp-endpoint-hit", hide);
+      marker.remove();
+    };
+  }, []);
 
   // Robot position updates — high-frequency; cheap setData calls only.
   useEffect(() => {

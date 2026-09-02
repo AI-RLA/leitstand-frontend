@@ -37,6 +37,10 @@ function stageDurationMs(stage: StageViewModel): number | null {
   );
 }
 
+// A covered field carries hundreds of these, and a list that long is scrolled past rather than
+// read. Enough to see the shape of the coordinates, and the count says what is not shown.
+const WAYPOINTS_LISTED = 20;
+
 function waypointLabel(wp: StageViewModel["waypoints"][number]): string {
   if (wp.kind === "wgs84") {
     const head = wp.heading_deg != null ? ` · ${wp.heading_deg}°` : "";
@@ -71,7 +75,7 @@ function StageNode({
   }
   if (status === "CANCELLED") {
     return (
-      <div className={cn(base, "bg-[#F8FAFC] border-[#CBD5E1] text-[#94A3B8]")}>
+      <div className={cn(base, "bg-muted border-[#CBD5E1] text-[#94A3B8]")}>
         <Ban className="w-3 h-3" strokeWidth={2.5} />
       </div>
     );
@@ -144,7 +148,7 @@ export function MissionStageTimeline({
 
   return (
     <div className="bg-white border border-border rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-[#F8FAFC]">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
         <p className="text-ui-xs uppercase tracking-wider text-t3 font-semibold">
           Stage timeline
         </p>
@@ -205,8 +209,11 @@ export function MissionStageTimeline({
                     onClick={() => toggle(i)}
                     className="hover:text-t1 transition-colors"
                   >
-                    {stage.waypointCount} waypoint
-                    {stage.waypointCount === 1 ? "" : "s"}
+                    {/* A coverage stage is counted in swaths: its waypoint total is the swath
+                        endpoints, which is neither what it drives nor what it covers. */}
+                    {stage.swathCount === null
+                      ? `${stage.waypointCount} waypoint${stage.waypointCount === 1 ? "" : "s"}`
+                      : `${stage.swathCount} swath${stage.swathCount === 1 ? "" : "s"}`}
                   </button>
                   {frame && <> · {frame}</>}
                   {dist && <> · {dist}</>}
@@ -215,11 +222,19 @@ export function MissionStageTimeline({
 
                 {isExpanded && (
                   <ul className="mt-1 space-y-0.5 font-mono text-ui-xs text-t3">
-                    {stage.waypoints.map((wp, wi) => (
-                      <li key={wi}>
-                        {wi + 1}. {waypointLabel(wp)}
+                    {stage.waypoints
+                      .slice(0, WAYPOINTS_LISTED)
+                      .map((wp, wi) => (
+                        <li key={wi}>
+                          {wi + 1}. {waypointLabel(wp)}
+                        </li>
+                      ))}
+                    {stage.waypoints.length > WAYPOINTS_LISTED && (
+                      <li className="text-t3">
+                        &hellip; {stage.waypoints.length - WAYPOINTS_LISTED}{" "}
+                        more of {stage.waypoints.length}
                       </li>
-                    ))}
+                    )}
                   </ul>
                 )}
 

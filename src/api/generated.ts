@@ -162,7 +162,8 @@ export interface paths {
          *     Every waypoint must be a coordinate the operator stated. Do not compute one: not from a field
          *     or site boundary, not from a robot's current position, and not by converting a distance in
          *     metres into degrees. If you were given an area, a row spacing or a bearing rather than
-         *     coordinates, do not call this; say you cannot work them out and ask for them.
+         *     coordinates, do not call this: use plan_coverage_mission for a field that should be covered, and
+         *     otherwise say you cannot work the coordinates out and ask for them.
          *
          *     ``stages`` is a list of stage objects, not text containing a list.
          *
@@ -208,7 +209,7 @@ export interface paths {
          * @description Change a draft mission's name, description, or stages.
          *
          *     Only a mission still in DRAFT can be updated. Identify it by mission_id from list_missions.
-         *     Supplying stages replaces the existing ones.
+         *     Supplying stages replaces the existing ones, which a planned mission refuses: re-plan it.
          */
         patch: operations["update_mission"];
         trace?: never;
@@ -230,6 +231,34 @@ export interface paths {
         get: operations["get_mission_state"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan Coverage Mission
+         * @description Create a mission that covers a whole field, planned from the field's own boundary.
+         *
+         *     Use this whenever the operator asks to cover, survey, mow or treat a field rather than to
+         *     drive to stated points. Give the field_id, the robot the plan is for, and the working width
+         *     in metres; supply no coordinates, because the path is computed from the stored boundary, and
+         *     no turning radius, because the robot declares its own.
+         *
+         *     The mission is created as a draft and is not dispatched. Its coverage metrics come back with
+         *     it, so the operator can judge the plan before dispatching it.
+         */
+        post: operations["plan_coverage_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -506,6 +535,175 @@ export interface components {
             charging: boolean;
         };
         /**
+         * CoverageCapability
+         * @description Capabilities specific to executing COVERAGE stages.
+         *
+         *     A claim about steering rather than geometry: that the machine holds the swath line between
+         *     its endpoints instead of taking any convenient path between them.
+         */
+        CoverageCapability: {
+            /** Supported Waypoint Kinds */
+            supported_waypoint_kinds?: components["schemas"]["WaypointKind"][];
+        };
+        /**
+         * CoverageMetrics
+         * @description What an operator needs in order to judge a plan before dispatching it.
+         */
+        CoverageMetrics: {
+            /** Swath Count */
+            swath_count: number;
+            /**
+             * Track Length M
+             * @description Total swath length, the ground actually worked. Excludes the turns, so it is what the covered area is checked against rather than how far the machine drives.
+             */
+            track_length_m: number;
+            /**
+             * Path Length M
+             * @description How far the machine drives in total, turns included.
+             */
+            path_length_m?: number | null;
+            /** Covered Area M2 */
+            covered_area_m2: number;
+            /**
+             * Mainland Area M2
+             * @description Ground the swaths were allowed to work, which is the field less its headland. Absent on a plan plotted before it was reported.
+             */
+            mainland_area_m2?: number | null;
+            /**
+             * Max Excursion M
+             * @description How far outside the boundary the driven path reaches, in metres. A turn needs a headland at least as deep as the turning radius to be contained, and fields are rarely laid out that generously, so a correct plan routinely leaves the polygon. Whether that is a manoeuvre or a collision depends on what the boundary is made of, which only the operator knows.
+             */
+            max_excursion_m?: number | null;
+        };
+        /**
+         * CoverageParams
+         * @description The inputs that determine a coverage path, as the planner was actually given them.
+         *
+         *     The turning radius reaches here from the robot's own declaration rather than from the caller,
+         *     so the two cannot disagree. The working width does not: an implement is mounted per job, so
+         *     only the operator knows what is on the machine today.
+         *
+         *     The metre values carry no upper bound: what makes a width or a depth wrong is the field it
+         *     is asked about, and the planner answers that with a reason.
+         */
+        CoverageParams: {
+            /**
+             * Operation Width M
+             * @description Working width of the implement, in metres.
+             */
+            operation_width_m: number;
+            /**
+             * Turning Radius M
+             * @description Minimum turning radius in metres; 0 for a robot that turns on the spot.
+             */
+            turning_radius_m: number;
+            /**
+             * Headland Width M
+             * @description Turning space kept inside the boundary, in metres. Records what the plan was built with, which is the robot's own turning radius unless the operator chose otherwise.
+             */
+            headland_width_m: number;
+            /**
+             * Swath Angle Deg
+             * @description Bearing of the swath lines; the planner chooses one when omitted.
+             */
+            swath_angle_deg?: number | null;
+            /**
+             * Allow Overlap
+             * @description Whether the last pass may overlap the one before it to cover the remainder. Absent on a plan made before it was recorded.
+             */
+            allow_overlap?: boolean | null;
+            /**
+             * Track Width M
+             * @description Distance between the machine's wheels in metres, which the implement must at least span. Absent on a plan made before it was recorded.
+             */
+            track_width_m?: number | null;
+            /**
+             * Linear Curv Change
+             * @description How fast curvature may change along a turn, in 1/m2. Belongs to the machine as the turning radius does. Absent on a plan made before it was recorded.
+             */
+            linear_curv_change?: number | null;
+            /**
+             * Turn Sample M
+             * @description How closely a turn is sampled, in metres. A turn curves, so its shape survives only in the points taken along it. Absent on a plan made before it was recorded.
+             */
+            turn_sample_m?: number | null;
+        };
+        /**
+         * CoverageProvenance
+         * @description How a coverage mission came to exist.
+         *
+         *     Held with the mission rather than derived on demand: the field may be edited or deleted
+         *     afterwards, and a generated path can only be judged, reproduced, or refused for the wrong
+         *     robot against the inputs it was actually made from.
+         */
+        CoverageProvenance: {
+            /**
+             * Field Id
+             * Format: uuid
+             */
+            field_id: string;
+            /** Boundary Digest */
+            boundary_digest: string;
+            /** Field Area M2 */
+            field_area_m2: number;
+            /** @description The ground the swaths were allowed to work: the field less its headland. Held here with the rest of the geometry this plan was made against, since the field itself may be edited or deleted afterwards. Absent on a plan made before it was recorded. */
+            mainland_boundary?: components["schemas"]["Polygon"] | null;
+            params: components["schemas"]["CoverageParams"];
+            metrics: components["schemas"]["CoverageMetrics"];
+            /** Planner Version */
+            planner_version: string;
+            /** Planned For Robot Id */
+            planned_for_robot_id: string;
+            /**
+             * Planned At
+             * Format: date-time
+             */
+            planned_at: string;
+        };
+        /**
+         * CoverageStage
+         * @description Cover a field by driving its swaths in order, each reached by the turn before it.
+         */
+        CoverageStage: {
+            /**
+             * Stage Id
+             * Format: uuid
+             */
+            stage_id: string;
+            /**
+             * On Cancel
+             * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
+             */
+            on_cancel?: (components["schemas"]["NavigationStage"] | components["schemas"]["CoverageStage"])[] | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "coverage";
+            /**
+             * Segments
+             * @description The whole stage as one ordered route. Concatenating the segments gives the drivable line, turns included; the kinds say which of it is a worked swath. Consecutive segments share an endpoint, which a receiver joining them skips.
+             */
+            segments: components["schemas"]["Segment"][];
+        };
+        /**
+         * CoverageStageInput
+         * @description Cover a field by driving its swaths, each reached by the turn before it.
+         *
+         *     Identity is assigned by the backend, exactly as for a navigation stage.
+         */
+        CoverageStageInput: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "coverage";
+            /** Segments */
+            segments: components["schemas"]["SegmentInput"][];
+            /** On Cancel */
+            on_cancel?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
+        };
+        /**
          * ErrorOrigin
          * @description Source of a mission error: the robot's execution, or a backend-authored cause.
          * @enum {string}
@@ -585,6 +783,59 @@ export interface components {
             /** Robot Id */
             robot_id: string;
         };
+        /**
+         * MissionCoverageCreate
+         * @description Request a coverage mission over a stored field.
+         *
+         *     Deliberately flat and geometry-free: every value is a number or an id the caller already has,
+         *     and the path itself comes from the field's own boundary.
+         */
+        MissionCoverageCreate: {
+            /**
+             * Field Id
+             * Format: uuid
+             * @description Field to cover, from list_fields.
+             */
+            field_id: string;
+            /**
+             * Robot Id
+             * @description Robot the plan is computed for.
+             */
+            robot_id: string;
+            /**
+             * Name
+             * @description Mission name. Defaults to the field's own name; do not ask for one.
+             */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Operation Width M
+             * @description Working width of the mounted implement, in metres, and the one value only the operator knows. It is not the robot's own width: an implement is usually wider than the machine carrying it, and a plan built from the machine's width covers the field in far too many passes. Never take it from a robot's declared width; ask.
+             */
+            operation_width_m: number;
+            /**
+             * Headland Width M
+             * @description Turning space kept inside the field, in metres. Omit it unless the operator states one: left open, the planner uses the robot's own turning radius, which is what a turn needs to stay inside the boundary.
+             */
+            headland_width_m?: number | null;
+            /**
+             * Swath Angle Deg
+             * @description Bearing of the swath lines; the planner chooses one when omitted.
+             */
+            swath_angle_deg?: number | null;
+            /**
+             * Allow Overlap
+             * @description Whether the last pass may overlap the one before it. A field is rarely a whole number of passes wide; leaving the remainder unworked is the alternative. Set it false only when working ground twice is worse than missing a strip.
+             * @default false
+             */
+            allow_overlap: boolean;
+            /**
+             * Replaces
+             * @description A coverage mission over the same field that this plan supersedes; it is deleted once the new one exists. Pass it when the operator wants an existing plan changed rather than a second one, because a plan is re-derived rather than edited.
+             */
+            replaces?: string | null;
+        };
         /** MissionCreate */
         MissionCreate: {
             /** Name */
@@ -592,7 +843,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Stages */
-            stages: components["schemas"]["NavigationStageInput"][];
+            stages: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[];
         };
         /** MissionDispatchBody */
         MissionDispatchBody: {
@@ -645,7 +896,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Stages */
-            stages?: components["schemas"]["NavigationStageInput"][] | null;
+            stages?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
         };
         /** MissionView */
         MissionView: {
@@ -661,7 +912,7 @@ export interface components {
             /** Description */
             description: string | null;
             /** Stages */
-            stages: components["schemas"]["NavigationStage"][];
+            stages: (components["schemas"]["NavigationStage"] | components["schemas"]["CoverageStage"])[];
             status: components["schemas"]["MissionStatus"];
             /** Robot Id */
             robot_id: string | null;
@@ -679,6 +930,15 @@ export interface components {
             updated_at: string;
             /** Failure Errors */
             failure_errors?: components["schemas"]["MissionError"][] | null;
+            coverage?: components["schemas"]["CoverageProvenance"] | null;
+        };
+        /**
+         * NavigationCapability
+         * @description Capabilities specific to executing NAVIGATION stages.
+         */
+        NavigationCapability: {
+            /** Supported Waypoint Kinds */
+            supported_waypoint_kinds?: components["schemas"]["WaypointKind"][];
         };
         /**
          * NavigationStage
@@ -694,11 +954,10 @@ export interface components {
              * On Cancel
              * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
              */
-            on_cancel?: components["schemas"]["NavigationStage"][] | null;
+            on_cancel?: (components["schemas"]["NavigationStage"] | components["schemas"]["CoverageStage"])[] | null;
             /**
-             * Kind
-             * @default navigation
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             kind: "navigation";
             /**
@@ -717,9 +976,8 @@ export interface components {
          */
         NavigationStageInput: {
             /**
-             * Kind
-             * @default navigation
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             kind: "navigation";
             /**
@@ -731,7 +989,26 @@ export interface components {
              * On Cancel
              * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
              */
-            on_cancel?: components["schemas"]["NavigationStageInput"][] | null;
+            on_cancel?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
+        };
+        /**
+         * PhysicalParameters
+         * @description Fixed physical properties of the machine, declared by the robot itself.
+         *
+         *     Excludes any implement's working width: an implement is mounted per job, so its width is a
+         *     property of the work rather than of the robot.
+         */
+        PhysicalParameters: {
+            /**
+             * Track Width M
+             * @description Distance between the wheels in metres, centre to centre.
+             */
+            track_width_m: number;
+            /**
+             * Min Turning Radius M
+             * @description Zero declares a robot that turns on the spot.
+             */
+            min_turning_radius_m: number;
         };
         /**
          * Polygon
@@ -792,6 +1069,21 @@ export interface components {
             number
         ];
         /**
+         * RobotFactsheet
+         * @description What a robot can do, cached by the backend to pre-flight-validate dispatch.
+         *
+         *     A present per-kind capability (``navigation``) declares the robot supports
+         *     that stage kind. ``robot_id`` is stamped from the transport key on ingest,
+         *     not carried in the wire payload.
+         */
+        RobotFactsheet: {
+            /** Robot Id */
+            robot_id: string;
+            navigation?: components["schemas"]["NavigationCapability"] | null;
+            coverage?: components["schemas"]["CoverageCapability"] | null;
+            physical_parameters?: components["schemas"]["PhysicalParameters"] | null;
+        };
+        /**
          * RobotStatus
          * @description Displayed operational status of a robot.
          * @enum {string}
@@ -812,6 +1104,40 @@ export interface components {
             pose?: components["schemas"]["Pose"] | null;
             battery?: components["schemas"]["Battery"] | null;
             status: components["schemas"]["RobotStatus"];
+            factsheet?: components["schemas"]["RobotFactsheet"] | null;
+        };
+        /**
+         * Segment
+         * @description One swath across a field, or the turn joining two of them.
+         *
+         *     The distinction is the reason coverage is a stage kind of its own. The ground under a swath is
+         *     what gets worked, so a robot that took any convenient path between the same two endpoints would
+         *     leave the strip beside it unworked; the ground under a turn is worked by nothing.
+         */
+        Segment: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "swath" | "turn";
+            /**
+             * Waypoints
+             * @description The line to drive, in order. Two waypoints describe a straight run; more describe a curve, which cannot be recovered from its endpoints.
+             */
+            waypoints: (components["schemas"]["WGS84Waypoint"] | components["schemas"]["SiteLocalWaypoint"])[];
+        };
+        /**
+         * SegmentInput
+         * @description One swath across a field, or the turn joining two of them.
+         */
+        SegmentInput: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "swath" | "turn";
+            /** Waypoints */
+            waypoints: (components["schemas"]["WGS84Waypoint"] | components["schemas"]["SiteLocalWaypoint"])[];
         };
         /** SiteCreate */
         SiteCreate: {
@@ -992,6 +1318,12 @@ export interface components {
              */
             heading_deg?: number | null;
         };
+        /**
+         * WaypointKind
+         * @description A coordinate frame a waypoint can use; mirrors the Waypoint variants.
+         * @enum {string}
+         */
+        WaypointKind: "wgs84" | "site_local";
     };
     responses: never;
     parameters: never;
@@ -1424,6 +1756,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MissionStateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_coverage_mission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MissionCoverageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
                 };
             };
             /** @description Validation Error */
