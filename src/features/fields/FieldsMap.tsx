@@ -120,7 +120,7 @@ export function FieldsMap({ selectedFieldId }: Props) {
         if (field) {
           map.fitBounds(fieldBbox(field.geometry), {
             padding: 80,
-            maxZoom: 17,
+            maxZoom: 19,
             duration: 600,
           });
           hasFitBoundsRef.current = true;
@@ -151,7 +151,7 @@ export function FieldsMap({ selectedFieldId }: Props) {
       if (field) {
         map.fitBounds(fieldBbox(field.geometry), {
           padding: 80,
-          maxZoom: 17,
+          maxZoom: 19,
           duration: 600,
         });
         hasFitBoundsRef.current = true;
@@ -183,7 +183,7 @@ export function FieldsMap({ selectedFieldId }: Props) {
     if (field) {
       map.fitBounds(fieldBbox(field.geometry), {
         padding: 80,
-        maxZoom: 17,
+        maxZoom: 19,
         duration: 600,
       });
     }

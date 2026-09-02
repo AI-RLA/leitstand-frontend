@@ -386,7 +386,7 @@ export function FleetMap() {
     if (field) {
       map.fitBounds(fieldBbox(field.geometry), {
         padding: 80,
-        maxZoom: 17,
+        maxZoom: 19,
         duration: 600,
       });
     }
