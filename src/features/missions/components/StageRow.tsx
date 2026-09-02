@@ -60,7 +60,7 @@ export function StageRow({
       )}
     >
       {/* Header — stage index, kind label, reorder/remove controls */}
-      <div className="px-3 py-2 border-b border-border bg-[#F8FAFC] flex items-center justify-between gap-2">
+      <div className="px-3 py-2 border-b border-border bg-muted flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-ui-xs uppercase tracking-wider font-semibold text-t3">
             Stage {index + 1}

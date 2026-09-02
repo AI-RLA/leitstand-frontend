@@ -258,7 +258,7 @@ export function FieldEdit({ id }: Props) {
 
         {stage === "naming" && (
           <div className="w-[272px] bg-white border-l border-border flex flex-col overflow-y-auto shrink-0">
-            <div className="px-4 py-3 border-b border-border bg-[#F8FAFC] shrink-0">
+            <div className="px-4 py-3 border-b border-border bg-muted shrink-0">
               <p className="text-ui-xs uppercase tracking-wider text-t3 font-semibold mb-2">
                 Polygon
               </p>

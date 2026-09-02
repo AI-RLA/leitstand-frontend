@@ -15,6 +15,11 @@ export default {
         red: { DEFAULT: "#EF4444", light: "#FEE2E2" },
         blue: { DEFAULT: "#3B82F6", light: "#EFF6FF" },
         bg: "#EEF0F4",
+        // The ground a page scrolls on, between the body and the cards. Never paint a card's own
+        // chrome with it: matching the ground is what makes a header read as a hole in the card.
+        canvas: "#F8FAFC",
+        // One step off white, for a control's resting fill, a hover tint, or a settled pill.
+        muted: "#F8FAFC",
         surface: "#FFFFFF",
         border: "#E2E8F0",
         "border-strong": "#CBD5E1",

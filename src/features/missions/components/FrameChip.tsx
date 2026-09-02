@@ -48,7 +48,7 @@ function Option({
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1 px-2 py-0.5 font-medium transition-colors",
-        active ? "bg-t1 text-white" : "bg-white text-t2 hover:bg-[#F8FAFC]",
+        active ? "bg-t1 text-white" : "bg-white text-t2 hover:bg-muted",
       )}
     >
       {icon}

@@ -251,7 +251,7 @@ export function MissionNew() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="h-full flex overflow-hidden bg-[#F8FAFC]"
+      className="h-full flex overflow-hidden bg-canvas"
     >
       {/* Left form pane */}
       <div className="w-[520px] shrink-0 flex flex-col border-r border-border bg-white">

@@ -34,7 +34,7 @@ export function RobotListItem({
       className={`w-full text-left py-[9px] px-3 border-l-[3px] border-b border-b-border transition-opacity ${
         selected
           ? "bg-[#F0FDF4] border-primary"
-          : "border-transparent hover:bg-[#F8FAFC]"
+          : "border-transparent hover:bg-muted"
       } ${!robot.online ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-2">

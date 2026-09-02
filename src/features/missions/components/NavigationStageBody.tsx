@@ -50,7 +50,7 @@ export function NavigationStageBody({
             required
             value={stage.site_id}
             onChange={(e) => onChangeSiteId(e.target.value)}
-            className="w-full border border-border rounded-md px-3 py-1.5 text-ui-sm text-t1 bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
+            className="w-full border border-border rounded-md px-3 py-1.5 text-ui-sm text-t1 bg-muted focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
           >
             <option value="">Select site…</option>
             {sites.map((site) => (
@@ -85,7 +85,7 @@ export function NavigationStageBody({
         <button
           type="button"
           onClick={onAddWaypoint}
-          className="text-ui-xs text-t2 border border-dashed border-border rounded px-2.5 py-1 hover:bg-[#F8FAFC] transition-colors inline-flex items-center gap-1"
+          className="text-ui-xs text-t2 border border-dashed border-border rounded px-2.5 py-1 hover:bg-muted transition-colors inline-flex items-center gap-1"
         >
           <Plus className="w-3 h-3" />
           Add waypoint

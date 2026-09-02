@@ -269,7 +269,7 @@ export function SiteDetail({ id }: Props) {
 
           {/* Details */}
           <div className="bg-white border border-border rounded-lg mb-3 overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-[#F8FAFC]">
+            <div className="px-4 py-2.5 border-b border-border">
               <p className="text-ui-xs uppercase tracking-wider text-t3 font-semibold">
                 Details
               </p>

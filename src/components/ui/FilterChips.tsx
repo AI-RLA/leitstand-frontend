@@ -32,7 +32,7 @@ export function FilterChips<K extends string>({
               "inline-flex items-center gap-1.5 text-ui-xs font-medium px-2 py-0.5 rounded-full border transition-colors",
               selected
                 ? "bg-t1 text-white border-t1"
-                : "bg-white text-t2 border-border hover:bg-[#F8FAFC]",
+                : "bg-white text-t2 border-border hover:bg-muted",
             )}
           >
             {it.label}

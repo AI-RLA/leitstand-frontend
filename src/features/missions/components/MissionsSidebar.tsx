@@ -93,7 +93,7 @@ export function MissionsSidebar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search missions…"
-          className="border border-border rounded-md px-2.5 py-1.5 text-ui-sm text-t1 bg-[#F8FAFC] focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition placeholder:text-t3"
+          className="border border-border rounded-md px-2.5 py-1.5 text-ui-sm text-t1 bg-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition placeholder:text-t3"
         />
         <FilterChips items={chipItems} value={filter} onChange={setFilter} />
       </div>

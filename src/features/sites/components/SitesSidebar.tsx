@@ -67,7 +67,7 @@ export function SitesSidebar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search sites…"
-          className="border border-border rounded-md px-2.5 py-1.5 text-ui-sm text-t1 bg-[#F8FAFC] focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition placeholder:text-t3"
+          className="border border-border rounded-md px-2.5 py-1.5 text-ui-sm text-t1 bg-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition placeholder:text-t3"
         />
         <div className="flex items-center gap-1 text-ui-xs">
           <span className="text-t3 font-semibold uppercase tracking-wider mr-1">
@@ -131,7 +131,7 @@ function SortToggle({
         "px-2 py-0.5 rounded font-medium transition-colors",
         selected
           ? "bg-t1 text-white"
-          : "bg-white text-t2 border border-border hover:bg-[#F8FAFC]",
+          : "bg-white text-t2 border border-border hover:bg-muted",
       )}
     >
       {label}

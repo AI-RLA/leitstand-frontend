@@ -18,7 +18,7 @@ export function SitesLayout() {
       >
         <SitesSidebar />
       </ResizablePane>
-      <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+      <div className="flex-1 overflow-y-auto bg-canvas">
         {atIndex ? (
           <EmptyState
             className="mt-16"

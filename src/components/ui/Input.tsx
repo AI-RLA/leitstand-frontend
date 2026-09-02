@@ -10,7 +10,7 @@ export function Input({ mono, className, ...rest }: InputProps) {
   return (
     <input
       className={cn(
-        "border border-border rounded-md px-3 py-2 text-ui-md text-t1 bg-[#F8FAFC] focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition placeholder:text-t3",
+        "border border-border rounded-md px-3 py-2 text-ui-md text-t1 bg-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition placeholder:text-t3",
         mono && "font-mono",
         className,
       )}

@@ -13,7 +13,7 @@ export function SiteUsagePanel({ siteId }: SiteUsagePanelProps) {
 
   return (
     <div className="bg-white border border-border rounded-lg overflow-hidden mb-3">
-      <div className="px-4 py-2.5 border-b border-border bg-[#F8FAFC]">
+      <div className="px-4 py-2.5 border-b border-border">
         <p className="text-ui-xs uppercase tracking-wider text-t3 font-semibold">
           {using.length === 0
             ? "Not used yet"
@@ -31,7 +31,7 @@ export function SiteUsagePanel({ siteId }: SiteUsagePanelProps) {
               key={m.mission_id}
               to="/missions/$id"
               params={{ id: m.mission_id }}
-              className="flex items-center justify-between gap-2 px-4 py-2 hover:bg-[#F8FAFC] transition-colors"
+              className="flex items-center justify-between gap-2 px-4 py-2 hover:bg-muted transition-colors"
             >
               <span className="text-ui-sm text-t1 font-medium truncate">
                 {m.name}

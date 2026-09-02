@@ -9,7 +9,7 @@ const MISSION_STYLES: Record<MissionStatus, { pill: string; dot: string }> = {
   PAUSED: { pill: "bg-[#FFFBEB] text-[#B45309]", dot: "bg-[#F59E0B]" },
   SUCCEEDED: { pill: "bg-[#F0FDF4] text-[#15803D]", dot: "bg-[#16A34A]" },
   FAILED: { pill: "bg-[#FEF2F2] text-[#B91C1C]", dot: "bg-[#EF4444]" },
-  CANCELLED: { pill: "bg-[#F8FAFC] text-[#64748B]", dot: "bg-[#94A3B8]" },
+  CANCELLED: { pill: "bg-muted text-[#64748B]", dot: "bg-[#94A3B8]" },
 };
 
 const STAGE_STYLES: Record<StageStatus, { pill: string; dot: string }> = {
@@ -19,9 +19,9 @@ const STAGE_STYLES: Record<StageStatus, { pill: string; dot: string }> = {
   PAUSED: { pill: "bg-[#FFFBEB] text-[#B45309]", dot: "bg-[#F59E0B]" },
   FINISHED: { pill: "bg-[#DCFCE7] text-[#15803D]", dot: "bg-[#16A34A]" },
   FAILED: { pill: "bg-[#FEF2F2] text-[#B91C1C]", dot: "bg-[#EF4444]" },
-  CANCELLED: { pill: "bg-[#F8FAFC] text-[#64748B]", dot: "bg-[#94A3B8]" },
+  CANCELLED: { pill: "bg-muted text-[#64748B]", dot: "bg-[#94A3B8]" },
   SKIPPED: {
-    pill: "bg-[#F8FAFC] text-[#94A3B8] line-through",
+    pill: "bg-muted text-[#94A3B8] line-through",
     dot: "bg-[#CBD5E1]",
   },
 };

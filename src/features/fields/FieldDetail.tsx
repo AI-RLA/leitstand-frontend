@@ -181,14 +181,14 @@ export function FieldDetail({ id }: Props) {
       <Link
         to="/fields/$id/edit"
         params={{ id }}
-        className="mb-3 flex items-center justify-between w-full bg-white border border-border rounded-lg px-4 py-3 text-ui-md text-t2 hover:bg-[#F8FAFC] transition-colors"
+        className="mb-3 flex items-center justify-between w-full bg-white border border-border rounded-lg px-4 py-3 text-ui-md text-t2 hover:bg-muted transition-colors"
       >
         <span className="font-medium">Edit geometry</span>
         <span className="text-t3">Redraw polygon →</span>
       </Link>
 
       <details className="bg-white border border-border rounded-lg overflow-hidden">
-        <summary className="px-4 py-3 text-ui-md font-medium text-t2 cursor-pointer select-none hover:bg-[#F8FAFC] transition-colors list-none flex items-center justify-between">
+        <summary className="px-4 py-3 text-ui-md font-medium text-t2 cursor-pointer select-none hover:bg-muted transition-colors list-none flex items-center justify-between">
           <span className="text-ui-xs uppercase tracking-wider font-semibold text-t3">
             GeoJSON
           </span>
@@ -272,7 +272,7 @@ function Card({
 }) {
   return (
     <div className="bg-white border border-border rounded-lg mb-3 overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-border bg-[#F8FAFC]">
+      <div className="px-4 py-2.5 border-b border-border">
         <p className="text-ui-xs uppercase tracking-wider text-t3 font-semibold">
           {title}
         </p>

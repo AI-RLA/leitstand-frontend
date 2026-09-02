@@ -19,7 +19,7 @@ export function SiteCard({ vm, selected }: SiteCardProps) {
         "block w-full px-3 py-[10px] border-l-[3px] border-b border-border transition-colors",
         selected
           ? "bg-[#EFF6FF] border-l-primary"
-          : "border-l-transparent hover:bg-[#F8FAFC]",
+          : "border-l-transparent hover:bg-muted",
       )}
     >
       <div className="flex items-center gap-2">

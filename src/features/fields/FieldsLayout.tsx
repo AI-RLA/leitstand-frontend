@@ -51,7 +51,7 @@ export function FieldsLayout() {
           max={520}
           onDragStateChange={setRightDragging}
         >
-          <div className="h-full overflow-y-auto bg-[#F8FAFC] border-l border-border">
+          <div className="h-full overflow-y-auto bg-canvas border-l border-border">
             <Outlet />
           </div>
         </ResizablePane>
@@ -96,7 +96,7 @@ function FieldSidebar() {
               className={`block w-full py-[9px] px-3 border-l-[3px] transition-colors ${
                 selected
                   ? "bg-[#F0FDF4] border-primary"
-                  : "border-transparent hover:bg-[#F8FAFC]"
+                  : "border-transparent hover:bg-muted"
               }`}
             >
               <div className="flex items-center justify-between gap-2">

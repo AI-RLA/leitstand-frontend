@@ -96,7 +96,7 @@ export function SiteNew() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="h-full flex overflow-hidden bg-[#F8FAFC]"
+      className="h-full flex overflow-hidden bg-muted"
     >
       {/* Left form pane */}
       <div className="w-[480px] shrink-0 flex flex-col border-r border-border bg-white">
@@ -233,7 +233,7 @@ export function SiteNew() {
                     type="button"
                     onClick={undoOutline}
                     disabled={outline.length === 0}
-                    className="text-ui-xs text-t2 border border-border rounded px-2.5 py-1 hover:bg-[#F8FAFC] transition-colors disabled:opacity-40"
+                    className="text-ui-xs text-t2 border border-border rounded px-2.5 py-1 hover:bg-muted transition-colors disabled:opacity-40"
                   >
                     Undo
                   </button>
@@ -241,7 +241,7 @@ export function SiteNew() {
                     type="button"
                     onClick={clearOutline}
                     disabled={outline.length === 0}
-                    className="text-ui-xs text-t2 border border-border rounded px-2.5 py-1 hover:bg-[#F8FAFC] transition-colors disabled:opacity-40"
+                    className="text-ui-xs text-t2 border border-border rounded px-2.5 py-1 hover:bg-muted transition-colors disabled:opacity-40"
                   >
                     Clear
                   </button>
@@ -267,7 +267,7 @@ export function SiteNew() {
                   <button
                     type="button"
                     onClick={clearOutline}
-                    className="text-ui-xs text-t2 border border-border rounded px-2.5 py-1 hover:bg-[#F8FAFC] transition-colors"
+                    className="text-ui-xs text-t2 border border-border rounded px-2.5 py-1 hover:bg-muted transition-colors"
                   >
                     Clear
                   </button>
