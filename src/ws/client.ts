@@ -1,4 +1,3 @@
-import { wsSubprotocols } from "@/api/auth";
 import type { Battery, Pose, RobotStatus } from "@/api/client";
 import { useFleet } from "@/stores/fleet";
 
@@ -25,6 +24,8 @@ export function addTopicListener(
 }
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? "/ws/v1";
+// Names the frame format; the backend echoes it back.
+const WS_SUBPROTOCOL = "leitstand.v1";
 const LIVENESS_INTERVAL_MS = 5_000;
 const LIVENESS_TIMEOUT_MS = 10_000;
 
@@ -93,7 +94,10 @@ export function connectWs(): WsHandle {
   let stopped = false;
   let lastPing = Date.now();
   let attempts = 0;
-  const STATIC_TOPICS = ["events/registry", "events/robot"];
+  // Subscribed for the life of the connection: every robot's telemetry and derived status.
+  // Mission topics are subscribed by the views that render them.
+  const STATIC_TOPICS = ["events/robot"];
+  const staticTopics = new Set<string>(STATIC_TOPICS);
   const topics = new Set<string>(STATIC_TOPICS);
 
   function send(frame: object): void {
@@ -105,7 +109,8 @@ export function connectWs(): WsHandle {
   function connect(): void {
     attempts += 1;
     console.info(`[ws] connecting… (attempt ${attempts})`);
-    ws = new WebSocket(resolveUrl(), wsSubprotocols());
+    // The proxy in front of the browser attaches any credential.
+    ws = new WebSocket(resolveUrl(), [WS_SUBPROTOCOL]);
 
     ws.addEventListener("open", () => {
       reconnectAfter = 500;
@@ -157,12 +162,7 @@ export function connectWs(): WsHandle {
         }
       }
       const fleet = useFleet.getState();
-      if (f.topic === "events/registry") {
-        const p = f.payload as { type?: string; robot_id?: string };
-        if (typeof p?.robot_id !== "string") return;
-        if (p.type === "robot.online") fleet.setOnline(p.robot_id, true);
-        else if (p.type === "robot.offline") fleet.setOnline(p.robot_id, false);
-      } else if (f.topic.startsWith("events/robot/")) {
+      if (f.topic.startsWith("events/robot/")) {
         // events/robot/<id>/<kind>
         const segs = f.topic.split("/");
         const id = segs[2];
@@ -171,8 +171,13 @@ export function connectWs(): WsHandle {
         if (kind === "pose" && isPose(f.payload)) fleet.setPose(id, f.payload);
         else if (kind === "battery" && isBattery(f.payload))
           fleet.setBattery(id, f.payload);
-        else if (kind === "status" && isRobotStatusPayload(f.payload))
+        else if (kind === "status" && isRobotStatusPayload(f.payload)) {
           fleet.setStatus(id, f.payload.status);
+          // Presence follows the status frame rather than the registry event: a frame is latched
+          // and replayed on every connect, so a robot whose state changed while this client was
+          // starting up is corrected instead of being remembered wrong.
+          fleet.setOnline(id, f.payload.status !== "offline");
+        }
       }
     });
 
@@ -220,7 +225,9 @@ export function connectWs(): WsHandle {
       send({ type: "subscribe", topic });
     },
     unsubscribe: (topic) => {
-      if (!topics.has(topic)) return;
+      // A static topic belongs to the connection, not to whoever happens to listen on it: a
+      // view unmounting must not take down the stream the rest of the app reads.
+      if (staticTopics.has(topic) || !topics.has(topic)) return;
       topics.delete(topic);
       send({ type: "unsubscribe", topic });
     },

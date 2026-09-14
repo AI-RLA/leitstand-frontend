@@ -9,20 +9,27 @@ import {
 import { BasemapControl } from "@/components/map/BasemapControl";
 import { useFleet } from "@/stores/fleet";
 import { fieldBbox, toFieldGeoJSON } from "@/components/map/fieldUtils";
-import { anchorFromSite, localToLatLon } from "../siteFrame";
+import { anchorFromSite, localToLatLon, type SiteAnchor } from "../siteFrame";
+import { coverageOf } from "../adapters";
 import { stageDrivenWaypoints, stageWaypoints } from "../stageWaypoints";
 import type {
   Field,
   Mission,
-  MissionState,
+  RunState,
   Site,
   StageStateView,
+  RunSiteAnchor,
 } from "@/api/client";
 
 interface MissionPathPreviewProps {
   mission: Mission;
-  state: MissionState | null;
+  state: RunState | null;
   sites: Site[];
+  /**
+   * The site frames this run was dispatched with, preferred over the current sites, so a
+   * finished run is not redrawn when a site moves and still draws after one is deleted.
+   */
+  siteAnchors?: Record<string, RunSiteAnchor> | null;
   /** Boundary this mission was planned over, drawn under the path so the two can be compared. */
   field?: Field | null;
 }
@@ -76,7 +83,28 @@ const STATUS_MATCH: CircleColor = [
 
 type Waypoint = ReturnType<typeof stageWaypoints>[number];
 
-function toCoords(waypoints: Waypoint[], sites: Site[]): [number, number][] {
+function anchorFor(
+  siteId: string,
+  sites: Site[],
+  frozen: Record<string, RunSiteAnchor> | null | undefined,
+): SiteAnchor | null {
+  const asDispatched = frozen?.[siteId];
+  if (asDispatched) {
+    return {
+      lat: asDispatched.anchor_lat,
+      lon: asDispatched.anchor_lon,
+      headingDeg: asDispatched.anchor_heading_deg,
+    };
+  }
+  const site = sites.find((s) => s.site_id === siteId);
+  return site ? anchorFromSite(site) : null;
+}
+
+function toCoords(
+  waypoints: Waypoint[],
+  sites: Site[],
+  frozen?: Record<string, RunSiteAnchor> | null,
+): [number, number][] {
   const coords: [number, number][] = [];
   for (const w of waypoints) {
     if (w.kind === "wgs84") {
@@ -84,9 +112,9 @@ function toCoords(waypoints: Waypoint[], sites: Site[]): [number, number][] {
         coords.push([w.lon, w.lat]);
       }
     } else if (w.kind === "site_local") {
-      const site = sites.find((s) => s.site_id === w.site_id);
-      if (site) {
-        const ll = localToLatLon(anchorFromSite(site), w.x, w.y);
+      const anchor = anchorFor(w.site_id, sites, frozen);
+      if (anchor) {
+        const ll = localToLatLon(anchor, w.x, w.y);
         coords.push([ll.lon, ll.lat]);
       }
     }
@@ -98,6 +126,7 @@ function resolveStagePaths(
   stages: Mission["stages"],
   liveStates: StageStateView[] | undefined,
   sites: Site[],
+  frozen?: Record<string, RunSiteAnchor> | null,
 ): StagePath[] {
   // Join runtime by stage_id (the live frame's order need not match the definition).
   const byId = new Map<string, StageStateView>(
@@ -106,13 +135,13 @@ function resolveStagePaths(
   const out: StagePath[] = [];
   for (let si = 0; si < stages.length; si++) {
     const stage = stages[si];
-    const marks = toCoords(stageWaypoints(stage), sites);
+    const marks = toCoords(stageWaypoints(stage), sites, frozen);
     // A coverage stage's swaths name only the ends of each pass, so joining those alone draws
     // straight chords where the machine will drive curves, and hides the swing outside the
     // boundary that the turn radius forces. The whole route, turns included, is the line driven.
     const line =
       stage.kind === "coverage"
-        ? toCoords(stageDrivenWaypoints(stage), sites)
+        ? toCoords(stageDrivenWaypoints(stage), sites, frozen)
         : marks;
     out.push({
       stageIndex: si,
@@ -389,6 +418,7 @@ export function MissionPathPreview({
   mission,
   state,
   sites,
+  siteAnchors,
   field,
 }: MissionPathPreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -397,18 +427,25 @@ export function MissionPathPreview({
 
   // The mainland: the field less its headland, as the planner cut it. Comes with the mission
   // rather than from the field, because the field can be edited after a plan is made.
-  const mainland = mission.coverage?.mainland_boundary ?? null;
+  const mainland = coverageOf(mission.stages)?.mainland_boundary ?? null;
 
-  // Live robot pose from the fleet WS stream (null when no robot assigned,
-  // robot is offline, or first pose hasn't arrived yet).
-  const robotId = mission.robot_id;
+  // Live robot pose from the fleet WS stream (null when no robot is running or assigned,
+  // the robot is offline, or its first pose has not arrived yet). The run's robot wins over
+  // the default: a run need not be on the mission's default robot.
+  const robotId = mission.latest_run?.robot_id ?? mission.assigned_robot_id;
   const robotPose = useFleet((s) =>
     robotId ? (s.robots[robotId]?.pose ?? null) : null,
   );
 
   const paths = useMemo(
-    () => resolveStagePaths(mission.stages, state?.stage_states, sites),
-    [mission, state, sites],
+    () =>
+      resolveStagePaths(
+        mission.stages,
+        state?.stage_states,
+        sites,
+        siteAnchors,
+      ),
+    [mission, state, sites, siteAnchors],
   );
 
   // One-time map init.

@@ -7,9 +7,11 @@ import { api } from "./api/client";
 import { useFleet } from "./stores/fleet";
 import { connectWs } from "./ws/client";
 import { useMissionLifecycleSync } from "./ws/useMissionLifecycleSync";
+import { useRobotPresenceSync } from "./ws/useRobotPresenceSync";
 
 export function RootLayout() {
   useMissionLifecycleSync();
+  useRobotPresenceSync();
   useEffect(() => {
     api
       .listRobots()

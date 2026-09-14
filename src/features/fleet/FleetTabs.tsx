@@ -12,10 +12,12 @@ import { useMissionState, useMissionStates } from "@/ws/missionState";
 import { useFleet } from "@/stores/fleet";
 import { StatusPill } from "@/components/ui/StatusPill";
 import {
-  isActiveStatus,
+  activeRunsOf,
+  bucketOf,
+  liveFor,
   toMissionViewModel,
 } from "@/features/missions/adapters";
-import type { Mission, MissionState } from "@/api/client";
+import type { Mission, RunState } from "@/api/client";
 import {
   STATUS_COLORS,
   batteryColor,
@@ -51,9 +53,11 @@ export function RobotTab() {
   const battPct = robot.battery?.battery_pct ?? null;
   const ts = latestTs(robot.battery?.ts, robot.pose?.ts);
 
+  // The mission this robot is driving right now, matched against every active run rather than
+  // only the latest one.
   const activeMission =
-    missions.find(
-      (m) => m.robot_id === selectedId && isActiveStatus(m.status),
+    missions.find((m) =>
+      activeRunsOf(m).some((r) => r.robot_id === selectedId),
     ) ?? null;
 
   return (
@@ -128,7 +132,10 @@ export function RobotTab() {
 }
 
 function CurrentMissionCard({ mission }: { mission: Mission }) {
-  const live = useMissionState(mission.mission_id);
+  const live = useMissionState(
+    mission.mission_id,
+    mission.latest_run?.run_id ?? null,
+  );
   const vm = toMissionViewModel(mission, live);
   return (
     <Link
@@ -163,22 +170,18 @@ export function MissionsTab() {
   const { data: missions = [], isLoading } = useMissions();
   const liveStates = useMissionStates();
 
-  const active = missions.filter((m) => isActiveStatus(m.status));
-  const drafts = missions.filter((m) => m.status === "DRAFT");
+  const active = missions.filter((m) => bucketOf(m) === "running");
+  const drafts = missions.filter((m) => bucketOf(m) === "draft");
   const recent = missions
-    .filter(
-      (m) =>
-        !isActiveStatus(m.status) &&
-        m.status !== "DRAFT" &&
-        m.status !== "ASSIGNED",
-    )
+    .filter((m) => bucketOf(m) === "history")
     .slice()
     .sort(
       (a, b) =>
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
     )
     .slice(0, 5);
-  const scheduled = missions.filter((m) => m.status === "ASSIGNED");
+  // Never run, with a default robot: ready to go.
+  const scheduled = missions.filter((m) => bucketOf(m) === "assigned");
 
   return (
     <div className="flex flex-col h-full">
@@ -210,7 +213,7 @@ export function MissionsTab() {
               <MissionRow
                 key={m.mission_id}
                 mission={m}
-                live={liveStates.get(m.mission_id) ?? null}
+                live={liveFor(liveStates, m)}
               />
             ))}
           </BucketSection>
@@ -225,7 +228,7 @@ export function MissionsTab() {
               <MissionRow
                 key={m.mission_id}
                 mission={m}
-                live={liveStates.get(m.mission_id) ?? null}
+                live={liveFor(liveStates, m)}
               />
             ))}
           </BucketSection>
@@ -240,7 +243,7 @@ export function MissionsTab() {
               <MissionRow
                 key={m.mission_id}
                 mission={m}
-                live={liveStates.get(m.mission_id) ?? null}
+                live={liveFor(liveStates, m)}
               />
             ))}
           </BucketSection>
@@ -255,7 +258,7 @@ export function MissionsTab() {
               <MissionRow
                 key={m.mission_id}
                 mission={m}
-                live={liveStates.get(m.mission_id) ?? null}
+                live={liveFor(liveStates, m)}
               />
             ))}
           </BucketSection>
@@ -281,7 +284,7 @@ function MissionRow({
   live,
 }: {
   mission: Mission;
-  live: MissionState | null;
+  live: RunState | null;
 }) {
   const vm = toMissionViewModel(mission, live);
   return (

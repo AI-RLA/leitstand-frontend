@@ -1,8 +1,11 @@
 import type {
+  CoverageProvenance,
   Mission,
-  MissionStatus,
   MissionError,
-  MissionState,
+  Run,
+  RunState,
+  RunSummary,
+  RunStatus,
   StageStateView,
   StageStatus,
 } from "@/api/client";
@@ -15,12 +18,36 @@ export type MissionLifecycleBucket =
   | "draft"
   | "history";
 
-export function bucketOf(status: MissionStatus): MissionLifecycleBucket {
-  if (status === "RUNNING" || status === "DISPATCHED" || status === "PAUSED")
-    return "running";
-  if (status === "ASSIGNED") return "assigned";
-  if (status === "DRAFT") return "draft";
-  return "history";
+export function isActiveStatus(status: RunStatus | null | undefined): boolean {
+  return (
+    status === "PENDING" ||
+    status === "DISPATCHED" ||
+    status === "RUNNING" ||
+    status === "PAUSED"
+  );
+}
+
+/** Every run of this mission still occupying a robot. */
+export function activeRunsOf(m: Mission): RunSummary[] {
+  return m.active_runs ?? [];
+}
+
+/**
+ * Whether any robot is still executing this mission: every run still occupying a robot counts,
+ * not only `latest_run`, which is the newest run created whatever became of it.
+ */
+export function isMissionActive(m: Mission): boolean {
+  return activeRunsOf(m).length > 0;
+}
+
+/**
+ * Which bucket a mission is in. A mission that has run belongs to history even with a default
+ * robot; only a never-run mission with a default robot reads as "assigned".
+ */
+export function bucketOf(m: Mission): MissionLifecycleBucket {
+  if (isMissionActive(m)) return "running";
+  if (m.latest_run) return "history";
+  return m.assigned_robot_id ? "assigned" : "draft";
 }
 
 export function countByBucket(
@@ -34,7 +61,7 @@ export function countByBucket(
     history: 0,
   };
   for (const m of missions) {
-    counts[bucketOf(m.status)]++;
+    counts[bucketOf(m)]++;
   }
   return counts;
 }
@@ -62,9 +89,14 @@ export interface MissionViewModel {
   id: string;
   name: string;
   description: string | null;
-  status: MissionStatus;
+  // The latest run's status; null when the mission has never run.
+  status: RunStatus | null;
+  runId: string | null;
   bucket: MissionLifecycleBucket;
+  // The latest run's robot, else the default robot the next run would go to.
   robotId: string | null;
+  assignedRobotId: string | null;
+  archived: boolean;
   stages: StageViewModel[];
   stageCount: number;
   overallProgress: number | null;
@@ -74,6 +106,8 @@ export interface MissionViewModel {
   createdAt: string;
   updatedAt: string;
   dispatchedAt: string | null;
+  // The latest run's end, by the backend clock; null while it runs or if it never ran.
+  endedAt: string | null;
 }
 
 type Waypoint = ReturnType<typeof stageWaypoints>[number];
@@ -114,16 +148,19 @@ const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
 export function toMissionViewModel(
   m: Mission,
-  state: MissionState | null,
+  state: RunState | null,
+  run: Run | null = null,
 ): MissionViewModel {
-  // Join the backend's per-stage runtime entries onto the definition spine by
-  // stage_id (the authoritative stage list + order is the mission definition).
+  // Join the backend's per-stage runtime entries onto the stage spine by stage_id. The spine
+  // is the run's frozen plan when a run is given, so editing the mission afterwards never
+  // redraws what a finished run did; the definition serves only a mission that has no run.
+  const spine = run?.stages ?? m.stages;
   const runtimeByStageId = new Map<string, StageStateView>();
   for (const ss of state?.stage_states ?? []) {
     runtimeByStageId.set(ss.stage_id, ss);
   }
 
-  const stages: StageViewModel[] = m.stages.map((s, i) => {
+  const stages: StageViewModel[] = spine.map((s, i) => {
     // The backend resolves and serves per-stage status (incl. CANCELLED/SKIPPED);
     // render it directly. A stage with no served entry defaults to WAITING.
     const runtime = runtimeByStageId.get(s.stage_id) ?? null;
@@ -167,17 +204,22 @@ export function toMissionViewModel(
     overallProgress = 1;
   }
 
-  const elapsedMs = m.dispatched_at
-    ? Date.now() - new Date(m.dispatched_at).getTime()
+  const latest = m.latest_run ?? null;
+  const elapsedMs = latest?.dispatched_at
+    ? (latest.ended_at ? new Date(latest.ended_at).getTime() : Date.now()) -
+      new Date(latest.dispatched_at).getTime()
     : null;
 
   return {
     id: m.mission_id,
     name: m.name,
     description: m.description ?? null,
-    status: m.status,
-    bucket: bucketOf(m.status),
-    robotId: m.robot_id ?? null,
+    status: latest?.status ?? null,
+    runId: latest?.run_id ?? null,
+    bucket: bucketOf(m),
+    robotId: latest?.robot_id ?? m.assigned_robot_id ?? null,
+    assignedRobotId: m.assigned_robot_id ?? null,
+    archived: m.archived_at != null,
     stages,
     stageCount: stages.length,
     overallProgress,
@@ -186,10 +228,26 @@ export function toMissionViewModel(
     currentStageIndex,
     createdAt: m.created_at,
     updatedAt: m.updated_at,
-    dispatchedAt: m.dispatched_at ?? null,
+    dispatchedAt: latest?.dispatched_at ?? null,
+    endedAt: latest?.ended_at ?? null,
   };
 }
 
-export function isActiveStatus(status: MissionStatus): boolean {
-  return status === "RUNNING" || status === "DISPATCHED" || status === "PAUSED";
+/** The live frame of the run a mission list row is showing, or null. */
+export function liveFor(
+  states: Map<string, RunState>,
+  m: Mission,
+): RunState | null {
+  const runId = m.latest_run?.run_id;
+  return runId ? (states.get(runId) ?? null) : null;
+}
+
+/** The provenance of a mission's first planned path, or null when it has none. */
+export function coverageOf(
+  stages: Mission["stages"] | undefined,
+): CoverageProvenance | null {
+  for (const stage of stages ?? []) {
+    if (stage.kind === "coverage") return stage.provenance;
+  }
+  return null;
 }

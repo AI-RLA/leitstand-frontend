@@ -56,6 +56,7 @@ function stagesToDrafts(stages: Mission["stages"]): StageDraft[] {
       const site_id = first?.kind === "site_local" ? first.site_id : "";
       return {
         kind: "navigation",
+        stage_id: s.stage_id,
         frame,
         site_id,
         waypoints: s.waypoints.map(
@@ -273,6 +274,9 @@ export function MissionEdit({ id }: Props) {
 
     const builtStages: NavigationStageInput[] = stages.map((s) => ({
       kind: "navigation" as const,
+      // Kept for a stage that came from the mission; omitted for a new one, which the backend
+      // then assigns an id to.
+      stage_id: s.stage_id ?? null,
       waypoints:
         s.frame === "wgs84"
           ? s.waypoints.map((w) => ({

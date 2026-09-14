@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { MissionState } from "@/api/client";
+import type { RunState } from "@/api/client";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { cn } from "@/lib/utils";
 import { relativeTime, durationFromMs } from "@/lib/relativeTime";
@@ -11,7 +11,7 @@ interface MissionCardProps {
   selected: boolean;
   // Live state is supplied by the list-level subscription (useMissionStates),
   // so the card itself opens no WS subscription.
-  live: MissionState | null;
+  live: RunState | null;
 }
 
 export function MissionCard({ mission, selected, live }: MissionCardProps) {
@@ -72,22 +72,26 @@ function SecondaryLine({ vm }: { vm: MissionViewModel }) {
   }
 
   let text: string;
-  if (vm.status === "DISPATCHED") {
+  if (vm.status === "PENDING") {
+    text = vm.robotId ? `Dispatching to ${vm.robotId}…` : "Dispatching…";
+  } else if (vm.status === "DISPATCHED") {
     text = vm.robotId ? `Dispatched to ${vm.robotId}` : "Dispatched";
   } else if (vm.status === "PAUSED") {
     const stageNum =
       vm.currentStageIndex !== null ? vm.currentStageIndex + 1 : "?";
     text = `Paused · stage ${stageNum}/${vm.stageCount}`;
-  } else if (vm.status === "ASSIGNED") {
-    text = vm.robotId ? `Assigned to ${vm.robotId}` : "Assigned";
-  } else if (vm.status === "DRAFT") {
-    text = `${vm.stageCount} stage${vm.stageCount === 1 ? "" : "s"} · not dispatched`;
+  } else if (vm.status === null) {
+    text = vm.assignedRobotId
+      ? `Ready for ${vm.assignedRobotId} · not run yet`
+      : `${vm.stageCount} stage${vm.stageCount === 1 ? "" : "s"} · not run yet`;
   } else if (vm.status === "SUCCEEDED") {
-    text = `Succeeded ${relativeTime(vm.updatedAt)}`;
+    text = `Succeeded ${relativeTime(vm.endedAt ?? vm.updatedAt)}`;
   } else if (vm.status === "FAILED") {
-    text = `Failed ${relativeTime(vm.updatedAt)}`;
+    text = `Failed ${relativeTime(vm.endedAt ?? vm.updatedAt)}`;
+  } else if (vm.status === "REJECTED") {
+    text = `Rejected by ${vm.robotId ?? "the robot"} ${relativeTime(vm.endedAt ?? vm.updatedAt)}`;
   } else {
-    text = `Cancelled ${relativeTime(vm.updatedAt)}`;
+    text = `Cancelled ${relativeTime(vm.endedAt ?? vm.updatedAt)}`;
   }
 
   return <p className="ml-[15px] mt-1 text-ui-xs text-t3 truncate">{text}</p>;

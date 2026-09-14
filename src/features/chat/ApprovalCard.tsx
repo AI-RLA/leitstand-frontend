@@ -1,7 +1,7 @@
 import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useField } from "@/api/fields";
-import { useMission } from "@/api/missions";
+import { useMission, useMissions } from "@/api/missions";
 import { useRobots } from "@/api/robots";
 import { useSite } from "@/api/sites";
 import { Eyebrow } from "@/components/ui/Eyebrow";
@@ -32,32 +32,35 @@ const VERB: Record<string, { label: string; consequence: string; tone: Tone }> =
     },
     update_mission: {
       label: "Update mission",
-      consequence: "Changes this draft mission.",
+      consequence:
+        "Changes this mission's definition. Runs it has already had keep the plan they executed.",
       tone: "warn",
     },
     delete_mission: {
       label: "Delete mission",
-      consequence: "Permanently deletes this mission. This cannot be undone.",
+      consequence:
+        "Deletes a mission that never ran; archives one that has, keeping its runs readable.",
       tone: "destructive",
     },
     assign_mission: {
       label: "Assign mission",
-      consequence: "Reserves a robot for this mission without starting it.",
+      consequence:
+        "Sets the robot this mission runs on by default, without starting it.",
       tone: "warn",
     },
     unassign_mission: {
       label: "Unassign mission",
-      consequence: "Releases this mission's robot.",
+      consequence: "Clears this mission's default robot.",
       tone: "warn",
     },
     dispatch_mission: {
       label: "Dispatch mission",
-      consequence: "Commands a physical robot to begin driving.",
+      consequence: "Starts a run: commands a physical robot to begin driving.",
       tone: "warn",
     },
     cancel_mission: {
       label: "Cancel mission",
-      consequence: "Stops the mission and the robot.",
+      consequence: "Stops the mission's run and the robot.",
       tone: "destructive",
     },
     pause_mission: {
@@ -70,9 +73,9 @@ const VERB: Record<string, { label: string; consequence: string; tone: Tone }> =
       consequence: "Commands the robot to move again.",
       tone: "warn",
     },
-    reset_mission: {
-      label: "Reset mission",
-      consequence: "Returns a failed or cancelled mission to draft.",
+    restore_mission: {
+      label: "Restore mission",
+      consequence: "Brings an archived mission back into the list.",
       tone: "warn",
     },
     plan_coverage_mission: {
@@ -169,17 +172,15 @@ export function ApprovalCard({
     consequence: "Changes the fleet.",
     tone: "warn" as Tone,
   };
-  // Planning that supersedes deletes the mission it replaces, and a path is re-derived rather
-  // than edited, so that deletion is the ordinary way a plan is changed and the easiest thing on
-  // this card to approve without noticing. The base entry cannot carry it: without `replaces` the
-  // same verb destroys nothing.
+  // A re-plan rewrites an existing coverage stage's path rather than adding a mission, so the
+  // verb's consequence depends on the argument.
   const config =
-    approval.toolName === "plan_coverage_mission" && str(args.replaces)
+    approval.toolName === "plan_coverage_mission" && str(args.replan)
       ? {
           ...base,
           consequence:
-            "Derives a new path and permanently deletes the plan it replaces. This cannot be undone.",
-          tone: "destructive" as Tone,
+            "Derives a new path and writes it over the coverage stage named below. The mission keeps its id, its other stages and its past runs.",
+          tone: "warn" as Tone,
         }
       : base;
   const tone = TONE[config.tone];
@@ -381,7 +382,7 @@ function CoverageProposal({ args }: { args: Record<string, unknown> }) {
   const radius = robot?.factsheet?.physical_parameters?.min_turning_radius_m;
   const headland = args.headland_width_m;
   const angle = args.swath_angle_deg;
-  const replaces = str(args.replaces);
+  const replaces = str(args.replan);
   // Named rather than measured: how far a turn actually reaches is the planner's to compute and
   // report, and a browser estimating it would be guessing at the plan it has not seen.
   const shallow =
@@ -428,7 +429,7 @@ function CoverageProposal({ args }: { args: Record<string, unknown> }) {
           value={angle === undefined ? "not specified" : `${verbatim(angle)}°`}
         />
       </dl>
-      {replaces !== undefined && <Superseded missionId={replaces} />}
+      {replaces !== undefined && <Superseded stageId={replaces} />}
     </>
   );
 }
@@ -469,27 +470,36 @@ function Detail({
 }
 
 /**
- * The mission this plan would delete, resolved rather than named by id.
- *
- * Set apart from the inputs because it is not one: it is a second action riding the same
- * approval, and it is irreversible.
+ * The mission whose coverage stage this plan would rewrite, resolved from the stage id the
+ * proposal names, because the operator should see which plan is about to change.
  */
-function Superseded({ missionId }: { missionId: string }) {
-  const mission = useMission(missionId);
+function Superseded({ stageId }: { stageId: string }) {
+  const missions = useMissions();
+  const mission = (missions.data ?? []).find((m) =>
+    m.stages.some(
+      (s) =>
+        s.stage_id === stageId ||
+        (s.on_cancel ?? []).some((c) => c.stage_id === stageId),
+    ),
+  );
+  const unresolved = missions.isSuccess && mission === undefined;
   return (
-    <div className="mt-2 rounded-md border border-[#FECACA] bg-white px-2.5 py-2">
+    <div className="mt-2 rounded-md border border-[#FDE68A] bg-white px-2.5 py-2">
       <p className="text-ui-sm text-t1">
-        Deletes{" "}
-        <span className="font-medium">{mission.data?.name ?? missionId}</span>
-        {mission.data?.status ? (
-          <span className="text-t3"> ({mission.data.status})</span>
+        Rewrites the path of{" "}
+        <span className="font-medium">{mission?.name ?? stageId}</span>
+        {mission?.latest_run?.status ? (
+          <span className="text-t3">
+            {" "}
+            (last run {mission.latest_run.status})
+          </span>
         ) : null}
-        , the plan this one supersedes.
+        .
       </p>
       <p className="mt-0.5 text-ui-xs text-t3">
-        {mission.isError
-          ? "That mission could not be found, so this may delete nothing, or delete something else."
-          : "Permanently. This cannot be undone."}
+        {unresolved
+          ? "No mission has a coverage stage with that id, so this may change nothing, or something else."
+          : "Its id, name and past runs stay; only that stage's path changes."}
       </p>
     </div>
   );
@@ -809,7 +819,10 @@ function useTargetResolution(
     // The mission's own robot is named here only when the proposal does not name one itself,
     // since a robot the operator is being asked to commit to is not the same fact as the one the
     // mission already holds.
-    const meta = [mission.data?.status, robotId ? null : mission.data?.robot_id]
+    const meta = [
+      mission.data?.latest_run?.status ?? (mission.data ? "never run" : null),
+      robotId ? null : mission.data?.assigned_robot_id,
+    ]
       .filter(Boolean)
       .join(", ");
     return {

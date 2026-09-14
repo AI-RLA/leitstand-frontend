@@ -16,6 +16,7 @@ import { FieldDetail } from "./features/fields/FieldDetail";
 import { MissionsLayout } from "./features/missions/MissionsLayout";
 import { MissionDetail } from "./features/missions/MissionDetail";
 import { MissionEdit } from "./features/missions/MissionEdit";
+import { RunDetail } from "./features/missions/RunDetail";
 import { MissionNew } from "./features/missions/MissionNew";
 import { SitesLayout } from "./features/sites/SitesLayout";
 import { SiteDetail } from "./features/sites/SiteDetail";
@@ -110,6 +111,16 @@ const missionEditRoute = createRoute({
   },
 });
 
+// Nested under the mission for the breadcrumb, although the API addresses a run by its own id.
+const missionRunRoute = createRoute({
+  getParentRoute: () => missionsRoute,
+  path: "/$id/runs/$runId",
+  component: () => {
+    const { id, runId } = missionRunRoute.useParams();
+    return <RunDetail missionId={id} runId={runId} />;
+  },
+});
+
 const sitesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sites",
@@ -154,6 +165,7 @@ const routeTree = rootRoute.addChildren([
     missionNewRoute,
     missionDetailRoute,
     missionEditRoute,
+    missionRunRoute,
   ]),
   sitesRoute.addChildren([siteIndexRoute, siteNewRoute, siteDetailRoute]),
 ]);

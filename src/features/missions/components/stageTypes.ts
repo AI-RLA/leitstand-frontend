@@ -11,6 +11,9 @@ export type StageKind = "navigation";
 // member here, add the matching body component.
 export interface NavigationStageDraft {
   kind: "navigation";
+  // Set on a stage loaded from an existing mission and sent back on save, so the stage keeps
+  // its identity across the edit and its runs stay comparable. A stage added here has none.
+  stage_id?: string;
   frame: WaypointFrame;
   site_id: string;
   waypoints: WaypointDraft[];

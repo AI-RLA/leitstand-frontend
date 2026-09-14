@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import {
   bucketOf,
   countByBucket,
+  liveFor,
   type MissionLifecycleBucket,
 } from "../adapters";
 import { MissionGroupHeader } from "./MissionGroupHeader";
@@ -48,7 +49,7 @@ export function MissionsSidebar() {
     if (!missions) return [];
     const q = query.trim().toLowerCase();
     return missions.filter((m) => {
-      if (filter !== "all" && bucketOf(m.status) !== filter) return false;
+      if (filter !== "all" && bucketOf(m) !== filter) return false;
       if (q && !m.name.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -58,7 +59,7 @@ export function MissionsSidebar() {
     const groups = new Map<MissionLifecycleBucket, typeof filtered>();
     for (const b of BUCKETS) groups.set(b.bucket, []);
     for (const m of filtered) {
-      groups.get(bucketOf(m.status))!.push(m);
+      groups.get(bucketOf(m))!.push(m);
     }
     // Within each group, newest-updated first.
     for (const [, list] of groups) {
@@ -133,7 +134,7 @@ export function MissionsSidebar() {
                   key={m.mission_id}
                   mission={m}
                   selected={path === `/missions/${m.mission_id}`}
-                  live={liveStates.get(m.mission_id) ?? null}
+                  live={liveFor(liveStates, m)}
                 />
               ))}
             </div>

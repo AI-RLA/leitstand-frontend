@@ -147,11 +147,13 @@ export interface paths {
         };
         /**
          * List Missions
-         * @description List missions newest first, each with its lifecycle status and assigned robot.
+         * @description List missions newest first, each with its latest run.
          *
-         *     Status is one of DRAFT, ASSIGNED, DISPATCHED, RUNNING, PAUSED, SUCCEEDED, FAILED or
-         *     CANCELLED. Optionally filter by robot, by name, or both. This returns mission definitions and
-         *     status, not live per-stage progress: use get_mission_state for that.
+         *     A mission is a definition that can be run any number of times; ``latest_run`` carries the
+         *     status, robot and timings of its most recent run and is null when it has never run. Its
+         *     status is one of PENDING, DISPATCHED, RUNNING, PAUSED, SUCCEEDED, FAILED, CANCELLED or
+         *     REJECTED. Optionally filter by robot, by name, or both. This returns definitions, not live
+         *     per-stage progress: use get_mission_state for that.
          */
         get: operations["list_missions"];
         put?: never;
@@ -167,8 +169,8 @@ export interface paths {
          *
          *     ``stages`` is a list of stage objects, not text containing a list.
          *
-         *     The backend assigns the mission and stage ids. The mission is created as a draft and is not
-         *     dispatched.
+         *     The backend assigns the mission and stage ids. The mission is a definition and is not
+         *     dispatched; dispatch_mission runs it, as many times as wanted.
          */
         post: operations["create_mission"];
         delete?: never;
@@ -186,30 +188,35 @@ export interface paths {
         };
         /**
          * Get Mission
-         * @description Return one mission's definition, lifecycle status and assigned robot.
+         * @description Return one mission's definition, default robot and latest run.
          *
          *     Identify the mission by mission_id from list_missions, which is also how a mission named by
-         *     the operator is resolved.
+         *     the operator is resolved. Its run history is list_mission_runs.
          */
         get: operations["get_mission"];
         put?: never;
         post?: never;
         /**
          * Delete Mission
-         * @description Delete a mission permanently.
+         * @description Delete a mission that never ran, or archive one that did.
          *
-         *     Only a draft or already-finished mission can be deleted, and this cannot be undone. Identify
-         *     the mission by mission_id from list_missions.
+         *     A mission with runs is archived rather than deleted: it leaves the list, its runs stay
+         *     readable, and restore_mission brings it back. A mission with a run in progress is refused.
+         *     Identify the mission by mission_id from list_missions.
          */
         delete: operations["delete_mission"];
         options?: never;
         head?: never;
         /**
          * Update Mission
-         * @description Change a draft mission's name, description, or stages.
+         * @description Change a mission's name, description, or stages.
          *
-         *     Only a mission still in DRAFT can be updated. Identify it by mission_id from list_missions.
-         *     Supplying stages replaces the existing ones, which a planned mission refuses: re-plan it.
+         *     Allowed at any time, even while a run is active: a run carries its own copy of the plan, so
+         *     editing the definition never changes what a run did or is doing. Identify the mission by
+         *     mission_id from list_missions. Supplying stages replaces the existing ones; a stage that
+         *     carries its stage_id keeps its identity across the edit, one without gets a new id, and one
+         *     left out is removed. A planned coverage stage is carried by its stage_id alone; its path
+         *     cannot be written here, only re-planned.
          */
         patch: operations["update_mission"];
         trace?: never;
@@ -223,10 +230,11 @@ export interface paths {
         };
         /**
          * Get Mission State
-         * @description Return live per-stage progress for one mission, with errors attributed per stage.
+         * @description Return live per-stage progress of the mission's current run, errors attributed per stage.
          *
-         *     Each stage carries a status and a progress fraction. Use this to answer how far along a
-         *     mission is, or why it failed. Identify the mission by mission_id from list_missions.
+         *     The current run is the most recently started one still active, else the latest run of any
+         *     outcome. Each stage carries a status and a progress fraction. Use this to answer how far
+         *     along a mission is, or why it failed. A mission that has never run has no state (404).
          */
         get: operations["get_mission_state"];
         put?: never;
@@ -255,10 +263,31 @@ export interface paths {
          *     in metres; supply no coordinates, because the path is computed from the stored boundary, and
          *     no turning radius, because the robot declares its own.
          *
-         *     The mission is created as a draft and is not dispatched. Its coverage metrics come back with
-         *     it, so the operator can judge the plan before dispatching it.
+         *     With ``replan`` set, the named mission's plan is rewritten in place instead and its id is
+         *     returned. The mission is not dispatched. Its coverage metrics come back with it, so the
+         *     operator can judge the plan before dispatching it.
          */
         post: operations["plan_coverage_mission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Mission
+         * @description Bring an archived mission back into the list. Identify it by mission_id.
+         */
+        post: operations["restore_mission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -276,7 +305,7 @@ export interface paths {
         put?: never;
         /**
          * Assign Mission
-         * @description Assign a mission to a robot, readying it for dispatch without starting it.
+         * @description Set the robot a mission runs on by default, checking it can, without starting it.
          *
          *     Identify the mission by mission_id and give the robot_id. To also start it, use
          *     dispatch_mission instead.
@@ -299,9 +328,7 @@ export interface paths {
         put?: never;
         /**
          * Unassign Mission
-         * @description Remove the robot assignment from a mission that has not yet been dispatched.
-         *
-         *     Identify the mission by mission_id.
+         * @description Clear a mission's default robot. Identify the mission by mission_id.
          */
         post: operations["unassign_mission"];
         delete?: never;
@@ -321,10 +348,12 @@ export interface paths {
         put?: never;
         /**
          * Dispatch Mission
-         * @description Dispatch a mission to a robot and start it driving.
+         * @description Start a run of a mission on a robot.
          *
-         *     Sends the mission to its assigned robot, or to ``robot_id`` when given, and begins execution.
-         *     The mission must be in DRAFT or ASSIGNED; identify it by ``mission_id`` from list_missions.
+         *     Sends the mission's stages to its default robot, or to ``robot_id`` when given, and begins
+         *     execution. A mission can be run any number of times; each run keeps its own record. While a
+         *     run of this mission is active, a second one is refused (409). Identify the mission by
+         *     ``mission_id`` from list_missions. The returned ``latest_run`` is the new run.
          */
         post: operations["dispatch_mission"];
         delete?: never;
@@ -344,9 +373,11 @@ export interface paths {
         put?: never;
         /**
          * Cancel Mission
-         * @description Cancel a mission, stopping the robot if it is running.
+         * @description Cancel the mission's active run, stopping the robot.
          *
-         *     Identify it by mission_id from list_missions.
+         *     Identify the mission by mission_id from list_missions. With more than one run active,
+         *     ``run_id`` says which. Both modes stop within seconds: 'graceful', the default, comes to a
+         *     controlled stop at the next safe point and then cleans up; 'immediate' stops at once.
          */
         post: operations["cancel_mission"];
         delete?: never;
@@ -366,9 +397,10 @@ export interface paths {
         put?: never;
         /**
          * Pause Mission
-         * @description Pause a running mission, holding the robot in place.
+         * @description Pause the mission's running run, holding the robot in place.
          *
-         *     Identify the mission by mission_id. Use resume_mission to continue it.
+         *     Identify the mission by mission_id. Use resume_mission to continue it. With more than one
+         *     run active, ``run_id`` says which.
          */
         post: operations["pause_mission"];
         delete?: never;
@@ -388,9 +420,9 @@ export interface paths {
         put?: never;
         /**
          * Resume Mission
-         * @description Resume a paused mission, letting the robot continue.
+         * @description Resume the mission's paused run, letting the robot continue.
          *
-         *     Identify it by mission_id.
+         *     Identify it by mission_id. With more than one run active, ``run_id`` says which.
          */
         post: operations["resume_mission"];
         delete?: never;
@@ -399,22 +431,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/missions/{mission_id}/reset": {
+    "/api/v1/missions/{mission_id}/runs": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Reset Mission
-         * @description Return a failed or cancelled mission to draft so it can be edited and dispatched again.
+         * List Mission Runs
+         * @description List a mission's runs, newest first, without their plans.
          *
-         *     Identify the mission by mission_id.
+         *     Every execution the mission has ever had, whatever its outcome. Each carries its own robot,
+         *     timings, status and a digest of the plan it executed, so runs of an edited mission can be
+         *     told apart from runs of the plan as it stands.
          */
-        post: operations["reset_mission"];
+        get: operations["list_mission_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run
+         * @description Return one run with the plan it executed, frozen at dispatch, and its failure cause.
+         */
+        get: operations["get_run"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Run
+         * @description Remove a finished run and its per-stage record.
+         *
+         *     A run still active is refused (409): its robot is driving it. The audit log keeps every
+         *     completed delete; what goes is the detail.
+         */
+        delete: operations["delete_run"];
+        options?: never;
+        head?: never;
+        /**
+         * Annotate Run
+         * @description Set or clear a run's notes. Notes are the operator's, editable at any time.
+         */
+        patch: operations["annotate_run"];
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run State
+         * @description Return one run's per-stage state with errors attributed per stage.
+         *
+         *     A run the robot has not reported on yet projects every stage as WAITING from its own plan.
+         */
+        get: operations["get_run_state"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -534,6 +621,22 @@ export interface components {
             /** Charging */
             charging: boolean;
         };
+        /** CancelBody */
+        CancelBody: {
+            /** Run Id */
+            run_id?: string | null;
+            /**
+             * @description How the robot stops. Both stop within seconds: 'graceful' comes to a controlled stop at the next safe point (the current motion completed, the implement raised) and then runs the stage's on_cancel cleanup; 'immediate' stops at once, then cleans up.
+             * @default graceful
+             */
+            mode: components["schemas"]["CancelMode"];
+        };
+        /**
+         * CancelMode
+         * @description How the robot should react to a cancel request.
+         * @enum {string}
+         */
+        CancelMode: "graceful" | "immediate";
         /**
          * CoverageCapability
          * @description Capabilities specific to executing COVERAGE stages.
@@ -582,9 +685,6 @@ export interface components {
          *     The turning radius reaches here from the robot's own declaration rather than from the caller,
          *     so the two cannot disagree. The working width does not: an implement is mounted per job, so
          *     only the operator knows what is on the machine today.
-         *
-         *     The metre values carry no upper bound: what makes a width or a depth wrong is the field it
-         *     is asked about, and the planner answers that with a reason.
          */
         CoverageParams: {
             /**
@@ -663,6 +763,10 @@ export interface components {
         /**
          * CoverageStage
          * @description Cover a field by driving its swaths in order, each reached by the turn before it.
+         *
+         *     Provenance is required, so this stage cannot be written by hand: swaths come from the
+         *     planner, and the checks that refuse a robot which would cut the corners read the parameters
+         *     the plan was made with.
          */
         CoverageStage: {
             /**
@@ -685,23 +789,28 @@ export interface components {
              * @description The whole stage as one ordered route. Concatenating the segments gives the drivable line, turns included; the kinds say which of it is a worked swath. Consecutive segments share an endpoint, which a receiver joining them skips.
              */
             segments: components["schemas"]["Segment"][];
+            /** @description The inputs, measurements and act that produced these segments. */
+            provenance: components["schemas"]["CoverageProvenance"];
         };
         /**
-         * CoverageStageInput
-         * @description Cover a field by driving its swaths, each reached by the turn before it.
+         * CoverageStageRef
+         * @description A coverage stage this mission already has, carried through an edit unchanged.
          *
-         *     Identity is assigned by the backend, exactly as for a navigation stage.
+         *     Swaths are a planner's output, so there is no way to write one here: the stage is named, and
+         *     the stored segments and provenance are kept as they are. Naming a stage of another mission,
+         *     or one that is not coverage, is refused.
          */
-        CoverageStageInput: {
+        CoverageStageRef: {
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
             kind: "coverage";
-            /** Segments */
-            segments: components["schemas"]["SegmentInput"][];
-            /** On Cancel */
-            on_cancel?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
+            /**
+             * Stage Id
+             * Format: uuid
+             */
+            stage_id: string;
         };
         /**
          * ErrorOrigin
@@ -831,10 +940,10 @@ export interface components {
              */
             allow_overlap: boolean;
             /**
-             * Replaces
-             * @description A coverage mission over the same field that this plan supersedes; it is deleted once the new one exists. Pass it when the operator wants an existing plan changed rather than a second one, because a plan is re-derived rather than edited.
+             * Replan
+             * @description The id of an existing coverage stage whose path should be re-planned in place, instead of creating a new mission. Pass it when the operator wants an existing plan changed rather than a second one: a plan is re-derived rather than edited. The mission keeps its id, its name, its other stages and every run it has had; only that stage's path and provenance change.
              */
-            replaces?: string | null;
+            replan?: string | null;
         };
         /** MissionCreate */
         MissionCreate: {
@@ -843,12 +952,17 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Stages */
-            stages: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[];
+            stages: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageRef"])[];
         };
         /** MissionDispatchBody */
         MissionDispatchBody: {
-            /** Robot Id */
-            robot_id: string;
+            /**
+             * Robot Id
+             * @description Robot to run on; defaults to the assigned one.
+             */
+            robot_id?: string | null;
+            /** Notes */
+            notes?: string | null;
         };
         /**
          * MissionError
@@ -870,25 +984,6 @@ export interface components {
             /** Description */
             description: string;
         };
-        /**
-         * MissionStateView
-         * @description A mission's per-stage state as one read shape for both REST and the live WS frame.
-         */
-        MissionStateView: {
-            /**
-             * Mission Id
-             * Format: uuid
-             */
-            mission_id: string;
-            /** Stage States */
-            stage_states: components["schemas"]["StageStateView"][];
-        };
-        /**
-         * MissionStatus
-         * @description Lifecycle state of a Mission as tracked by the backend.
-         * @enum {string}
-         */
-        MissionStatus: "DRAFT" | "ASSIGNED" | "DISPATCHED" | "RUNNING" | "PAUSED" | "SUCCEEDED" | "FAILED" | "CANCELLED";
         /** MissionUpdate */
         MissionUpdate: {
             /** Name */
@@ -896,7 +991,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Stages */
-            stages?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
+            stages?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageRef"])[] | null;
         };
         /** MissionView */
         MissionView: {
@@ -905,19 +1000,16 @@ export interface components {
              * Format: uuid
              */
             mission_id: string;
-            /** Update Id */
-            update_id: number;
             /** Name */
             name: string;
             /** Description */
             description: string | null;
             /** Stages */
             stages: (components["schemas"]["NavigationStage"] | components["schemas"]["CoverageStage"])[];
-            status: components["schemas"]["MissionStatus"];
-            /** Robot Id */
-            robot_id: string | null;
-            /** Dispatched At */
-            dispatched_at: string | null;
+            /** Assigned Robot Id */
+            assigned_robot_id: string | null;
+            /** Archived At */
+            archived_at: string | null;
             /**
              * Created At
              * Format: date-time
@@ -928,9 +1020,18 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-            /** Failure Errors */
-            failure_errors?: components["schemas"]["MissionError"][] | null;
-            coverage?: components["schemas"]["CoverageProvenance"] | null;
+            /**
+             * Stages Digest
+             * @description Digest of the stages as they stand now. A run whose stages_digest matches ran the plan this mission currently holds; one that differs ran an older plan. Computed the same way as a run's, so the two are directly comparable.
+             */
+            stages_digest: string;
+            /** @description The most recently created run; null means the mission has never run. */
+            latest_run?: components["schemas"]["RunSummaryView"] | null;
+            /**
+             * Active Runs
+             * @description Every run of this mission still occupying a robot, newest first. Whether the mission is running is this being non-empty, not the status of latest_run: a concurrent run that ends first becomes latest_run while the other still drives. With more than one entry, mission-addressed cancel, pause and resume require a run_id, and these are the candidates.
+             */
+            active_runs?: components["schemas"]["RunSummaryView"][];
         };
         /**
          * NavigationCapability
@@ -970,9 +1071,9 @@ export interface components {
          * NavigationStageInput
          * @description Drive the robot through an ordered list of waypoints, as requested by a caller.
          *
-         *     Identity is deliberately absent, and that is the point: ``stage_id`` is assigned by the
-         *     backend, so no caller can choose one. Two stages sharing an id would collapse onto a single
-         *     ``mission_stage_state`` row, leaving the robot's per-stage reports unattributable.
+         *     Supply ``stage_id`` to keep a stage's identity across an edit, so its runs stay comparable;
+         *     omit it for a new stage and the backend assigns one. A supplied id must already belong to the
+         *     mission being edited and appear once in the request.
          */
         NavigationStageInput: {
             /**
@@ -980,6 +1081,8 @@ export interface components {
              * @enum {string}
              */
             kind: "navigation";
+            /** Stage Id */
+            stage_id?: string | null;
             /**
              * Waypoints
              * @description Ordered waypoints to traverse. All waypoints in one stage must share their ``kind`` (homogeneity); this is enforced by the backend at dispatch, not by this schema.
@@ -989,14 +1092,11 @@ export interface components {
              * On Cancel
              * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
              */
-            on_cancel?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
+            on_cancel?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageRef"])[] | null;
         };
         /**
          * PhysicalParameters
          * @description Fixed physical properties of the machine, declared by the robot itself.
-         *
-         *     Excludes any implement's working width: an implement is mounted per job, so its width is a
-         *     property of the work rather than of the robot.
          */
         PhysicalParameters: {
             /**
@@ -1105,6 +1205,190 @@ export interface components {
             battery?: components["schemas"]["Battery"] | null;
             status: components["schemas"]["RobotStatus"];
             factsheet?: components["schemas"]["RobotFactsheet"] | null;
+            current_run?: components["schemas"]["RunSummaryView"] | null;
+        };
+        /** RunNotesPatch */
+        RunNotesPatch: {
+            /** Notes */
+            notes?: string | null;
+        };
+        /** RunOriginView */
+        RunOriginView: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "manual" | "agent";
+            /** Actor */
+            actor: string;
+            /** Tool Call Id */
+            tool_call_id?: string | null;
+        };
+        /**
+         * RunSelectBody
+         * @description Which run a mission-addressed command means; needed only when several are active.
+         */
+        RunSelectBody: {
+            /** Run Id */
+            run_id?: string | null;
+        };
+        /**
+         * RunSiteAnchor
+         * @description Where a site stood when a run was dispatched into it.
+         *
+         *     A site-local waypoint is a pair of numbers that mean nothing without the frame they are
+         *     measured in, so the frame is copied into the run beside the plan. The name is copied
+         *     too, so the run stays readable after the site is deleted.
+         */
+        RunSiteAnchor: {
+            /** Name */
+            name: string;
+            /** Anchor Lat */
+            anchor_lat: number;
+            /** Anchor Lon */
+            anchor_lon: number;
+            /** Anchor Heading Deg */
+            anchor_heading_deg: number;
+        };
+        /**
+         * RunStateView
+         * @description A run's per-stage state as one read shape for both REST and the live WS frame.
+         *
+         *     Carries both ids: the WS topic is keyed by mission, so a subscriber showing one run must
+         *     filter frames by ``run_id``, and a list of missions indexes them by ``mission_id``.
+         */
+        RunStateView: {
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Mission Id
+             * Format: uuid
+             */
+            mission_id: string;
+            /** Stage States */
+            stage_states: components["schemas"]["StageStateView"][];
+        };
+        /**
+         * RunStatus
+         * @description Lifecycle state of a MissionRun, owned by the backend.
+         *
+         *     ``PENDING`` is the run row committed before the robot has answered the dispatch. ``REJECTED``
+         *     is kept apart from ``FAILED`` because they mean different things for the robot: a rejection
+         *     means it is definitely not driving, while a timeout or a mid-run failure means it may be.
+         * @enum {string}
+         */
+        RunStatus: "PENDING" | "DISPATCHED" | "RUNNING" | "PAUSED" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "REJECTED";
+        /**
+         * RunSummaryView
+         * @description A run without its stages: what a list shows, and what a mission carries as ``latest_run``.
+         */
+        RunSummaryView: {
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Mission Id
+             * Format: uuid
+             */
+            mission_id: string;
+            /** Robot Id */
+            robot_id: string;
+            status: components["schemas"]["RunStatus"];
+            /**
+             * Stages Digest
+             * @description Content digest of what this run was told to do, ignoring stage ids and how a stage was produced. Two runs with the same digest drove the same ground.
+             */
+            stages_digest: string;
+            origin: components["schemas"]["RunOriginView"];
+            /** Notes */
+            notes: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Dispatched At */
+            dispatched_at: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Last Frame At
+             * @description When the robot last reported on this run, by the backend's clock.
+             */
+            last_frame_at: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description When the backend last changed this run: a status transition or a notes edit.
+             */
+            updated_at: string;
+        };
+        /**
+         * RunView
+         * @description A run with the stages it was dispatched with, frozen as they stood, and any failure.
+         */
+        RunView: {
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Mission Id
+             * Format: uuid
+             */
+            mission_id: string;
+            /** Robot Id */
+            robot_id: string;
+            status: components["schemas"]["RunStatus"];
+            /**
+             * Stages Digest
+             * @description Content digest of what this run was told to do, ignoring stage ids and how a stage was produced. Two runs with the same digest drove the same ground.
+             */
+            stages_digest: string;
+            origin: components["schemas"]["RunOriginView"];
+            /** Notes */
+            notes: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Dispatched At */
+            dispatched_at: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Last Frame At
+             * @description When the robot last reported on this run, by the backend's clock.
+             */
+            last_frame_at: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description When the backend last changed this run: a status transition or a notes edit.
+             */
+            updated_at: string;
+            /** Stages */
+            stages: (components["schemas"]["NavigationStage"] | components["schemas"]["CoverageStage"])[];
+            /**
+             * Site Anchors
+             * @description The frame of each site this run drove in, as it stood at dispatch, keyed by site id. Site-local waypoints are measured against these rather than against the site as it is now, so moving or deleting a site cannot move a run that already happened.
+             */
+            site_anchors?: {
+                [key: string]: components["schemas"]["RunSiteAnchor"];
+            } | null;
+            /** Failure Errors */
+            failure_errors?: components["schemas"]["MissionError"][] | null;
         };
         /**
          * Segment
@@ -1124,19 +1408,6 @@ export interface components {
              * Waypoints
              * @description The line to drive, in order. Two waypoints describe a straight run; more describe a curve, which cannot be recovered from its endpoints.
              */
-            waypoints: (components["schemas"]["WGS84Waypoint"] | components["schemas"]["SiteLocalWaypoint"])[];
-        };
-        /**
-         * SegmentInput
-         * @description One swath across a field, or the turn joining two of them.
-         */
-        SegmentInput: {
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "swath" | "turn";
-            /** Waypoints */
             waypoints: (components["schemas"]["WGS84Waypoint"] | components["schemas"]["SiteLocalWaypoint"])[];
         };
         /** SiteCreate */
@@ -1259,6 +1530,12 @@ export interface components {
             } | null;
             /** Errors */
             errors: components["schemas"]["MissionError"][];
+            /**
+             * Status Source
+             * @description Who established the status: 'robot' when the robot reported it, 'backend' when the backend projected it because the run ended before the robot reported this stage.
+             * @enum {string}
+             */
+            status_source: "robot" | "backend";
         };
         /**
          * StageStatus
@@ -1579,10 +1856,12 @@ export interface operations {
     list_missions: {
         parameters: {
             query?: {
-                /** @description Filter to missions assigned to this robot id. */
+                /** @description Filter to missions whose default robot is this robot id. */
                 robot?: string | null;
                 /** @description Filter to missions with exactly this name, matched case-insensitively. */
                 name?: string | null;
+                /** @description Also return archived missions. */
+                include_archived?: boolean;
             };
             header?: never;
             path?: never;
@@ -1755,7 +2034,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MissionStateView"];
+                    "application/json": components["schemas"]["RunStateView"];
                 };
             };
             /** @description Validation Error */
@@ -1784,6 +2063,37 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_mission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1912,7 +2222,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CancelBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1943,7 +2257,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RunSelectBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1974,7 +2292,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RunSelectBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1996,9 +2318,13 @@ export interface operations {
             };
         };
     };
-    reset_mission: {
+    list_mission_runs: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                /** @description Only runs created before this instant; pages backwards. */
+                before?: string | null;
+            };
             header?: never;
             path: {
                 mission_id: string;
@@ -2013,7 +2339,133 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MissionView"];
+                    "application/json": components["schemas"]["RunSummaryView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    annotate_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunNotesPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunStateView"];
                 };
             };
             /** @description Validation Error */

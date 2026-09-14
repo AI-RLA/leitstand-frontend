@@ -1,4 +1,3 @@
-import { authHeaders } from "./auth";
 import type { components } from "./generated";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
@@ -43,7 +42,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders(),
       ...(init.headers ?? {}),
     },
     ...init,
@@ -65,8 +63,13 @@ export type FieldUpdate = components["schemas"]["FieldUpdate"];
 export type Mission = components["schemas"]["MissionView"];
 export type MissionCreate = components["schemas"]["MissionCreate"];
 export type MissionUpdate = components["schemas"]["MissionUpdate"];
-export type MissionStatus = components["schemas"]["MissionStatus"];
-export type MissionState = components["schemas"]["MissionStateView"];
+export type RunStatus = components["schemas"]["RunStatus"];
+export type RunSummary = components["schemas"]["RunSummaryView"];
+export type Run = components["schemas"]["RunView"];
+export type RunSiteAnchor = components["schemas"]["RunSiteAnchor"];
+export type CoverageProvenance = components["schemas"]["CoverageProvenance"];
+export type RunState = components["schemas"]["RunStateView"];
+export type MissionDispatchBody = components["schemas"]["MissionDispatchBody"];
 export type StageStateView = components["schemas"]["StageStateView"];
 export type StageStatus = components["schemas"]["StageStatus"];
 export type MissionError = components["schemas"]["MissionError"];
@@ -94,11 +97,26 @@ export const api = {
   deleteField: (id: string) =>
     request<void>(`/fields/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
-  listMissions: () => request<Mission[]>("/missions/"),
+  listMissions: (includeArchived = false) =>
+    request<Mission[]>(
+      includeArchived ? "/missions/?include_archived=true" : "/missions/",
+    ),
   getMission: (id: string) =>
     request<Mission>(`/missions/${encodeURIComponent(id)}`),
   getMissionState: (id: string) =>
-    request<MissionState>(`/missions/${encodeURIComponent(id)}/state`),
+    request<RunState>(`/missions/${encodeURIComponent(id)}/state`),
+  listMissionRuns: (id: string) =>
+    request<RunSummary[]>(`/missions/${encodeURIComponent(id)}/runs`),
+  getRun: (runId: string) => request<Run>(`/runs/${encodeURIComponent(runId)}`),
+  getRunState: (runId: string) =>
+    request<RunState>(`/runs/${encodeURIComponent(runId)}/state`),
+  annotateRun: (runId: string, notes: string | null) =>
+    request<Run>(`/runs/${encodeURIComponent(runId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes }),
+    }),
+  deleteRun: (runId: string) =>
+    request<void>(`/runs/${encodeURIComponent(runId)}`, { method: "DELETE" }),
   createMission: (body: MissionCreate) =>
     request<Mission>("/missions/", {
       method: "POST",
@@ -118,27 +136,32 @@ export const api = {
     request<Mission>(`/missions/${encodeURIComponent(id)}/unassign`, {
       method: "POST",
     }),
-  dispatchMission: (id: string) =>
+  dispatchMission: (id: string, body: Partial<MissionDispatchBody> = {}) =>
     request<Mission>(`/missions/${encodeURIComponent(id)}/dispatch`, {
       method: "POST",
+      body: JSON.stringify(body),
     }),
   deleteMission: (id: string) =>
     request<void>(`/missions/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  cancelMission: (id: string) =>
+  restoreMission: (id: string) =>
+    request<Mission>(`/missions/${encodeURIComponent(id)}/restore`, {
+      method: "POST",
+    }),
+  // A run id is needed only when more than one run of the mission is active.
+  cancelMission: (id: string, runId: string | null = null) =>
     request<Mission>(`/missions/${encodeURIComponent(id)}/cancel`, {
       method: "POST",
+      body: JSON.stringify({ run_id: runId }),
     }),
-  pauseMission: (id: string) =>
+  pauseMission: (id: string, runId: string | null = null) =>
     request<Mission>(`/missions/${encodeURIComponent(id)}/pause`, {
       method: "POST",
+      body: JSON.stringify({ run_id: runId }),
     }),
-  resumeMission: (id: string) =>
+  resumeMission: (id: string, runId: string | null = null) =>
     request<Mission>(`/missions/${encodeURIComponent(id)}/resume`, {
       method: "POST",
-    }),
-  resetMission: (id: string) =>
-    request<Mission>(`/missions/${encodeURIComponent(id)}/reset`, {
-      method: "POST",
+      body: JSON.stringify({ run_id: runId }),
     }),
 
   listSites: () => request<Site[]>("/sites/"),

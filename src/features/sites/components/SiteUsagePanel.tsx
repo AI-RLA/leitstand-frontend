@@ -36,7 +36,10 @@ export function SiteUsagePanel({ siteId }: SiteUsagePanelProps) {
               <span className="text-ui-sm text-t1 font-medium truncate">
                 {m.name}
               </span>
-              <StatusPill variant="mission" status={m.status} />
+              <StatusPill
+                variant="mission"
+                status={m.latest_run?.status ?? null}
+              />
             </Link>
           ))}
         </div>

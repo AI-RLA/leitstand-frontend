@@ -3,14 +3,19 @@ import {
   api,
   type Mission,
   type MissionCreate,
+  type MissionDispatchBody,
   type MissionUpdate,
 } from "./client";
+import { missionRunsKey } from "./runs";
 
 export const MISSIONS_KEY = ["missions"] as const;
 export const missionKey = (id: string) => ["missions", id] as const;
 
 export function useMissions() {
-  return useQuery({ queryKey: MISSIONS_KEY, queryFn: api.listMissions });
+  return useQuery({
+    queryKey: MISSIONS_KEY,
+    queryFn: () => api.listMissions(),
+  });
 }
 
 export function useMission(
@@ -22,15 +27,6 @@ export function useMission(
     queryFn: () => api.getMission(id),
     refetchInterval: options?.refetchInterval,
     enabled: options?.enabled,
-  });
-}
-
-export function useMissionLatestState(id: string, enabled: boolean) {
-  return useQuery({
-    queryKey: [...missionKey(id), "state"],
-    queryFn: () => api.getMissionState(id),
-    enabled,
-    retry: false, // a 404 (mission never produced state) must not retry-loop
   });
 }
 
@@ -78,10 +74,12 @@ export function useUnassignMission(id: string) {
 export function useDispatchMission(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.dispatchMission(id),
+    mutationFn: (body: Partial<MissionDispatchBody> = {}) =>
+      api.dispatchMission(id, body),
     onSettled: () => {
       void qc.refetchQueries({ queryKey: missionKey(id) });
       void qc.invalidateQueries({ queryKey: MISSIONS_KEY, exact: true });
+      void qc.invalidateQueries({ queryKey: missionRunsKey(id) });
     },
   });
 }
@@ -89,10 +87,11 @@ export function useDispatchMission(id: string) {
 export function useCancelMission(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.cancelMission(id),
+    mutationFn: (runId: string | null = null) => api.cancelMission(id, runId),
     onSuccess: (updated: Mission) => {
       qc.setQueryData(missionKey(id), updated);
       qc.invalidateQueries({ queryKey: MISSIONS_KEY });
+      qc.invalidateQueries({ queryKey: missionRunsKey(id) });
     },
   });
 }
@@ -100,10 +99,11 @@ export function useCancelMission(id: string) {
 export function usePauseMission(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.pauseMission(id),
+    mutationFn: (runId: string | null = null) => api.pauseMission(id, runId),
     onSuccess: (updated: Mission) => {
       qc.setQueryData(missionKey(id), updated);
       qc.invalidateQueries({ queryKey: MISSIONS_KEY });
+      qc.invalidateQueries({ queryKey: missionRunsKey(id) });
     },
   });
 }
@@ -111,21 +111,22 @@ export function usePauseMission(id: string) {
 export function useResumeMission(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.resumeMission(id),
+    mutationFn: (runId: string | null = null) => api.resumeMission(id, runId),
     onSuccess: (updated: Mission) => {
       qc.setQueryData(missionKey(id), updated);
       qc.invalidateQueries({ queryKey: MISSIONS_KEY });
+      qc.invalidateQueries({ queryKey: missionRunsKey(id) });
     },
   });
 }
 
-export function useResetMission(id: string) {
+export function useRestoreMission(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.resetMission(id),
-    onSettled: () => {
-      void qc.refetchQueries({ queryKey: missionKey(id) });
-      void qc.invalidateQueries({ queryKey: MISSIONS_KEY, exact: true });
+    mutationFn: () => api.restoreMission(id),
+    onSuccess: (updated: Mission) => {
+      qc.setQueryData(missionKey(id), updated);
+      qc.invalidateQueries({ queryKey: MISSIONS_KEY });
     },
   });
 }
@@ -135,7 +136,8 @@ export function useDeleteMission(id: string) {
   return useMutation({
     mutationFn: () => api.deleteMission(id),
     onSuccess: () => {
-      qc.removeQueries({ queryKey: missionKey(id) });
+      // A mission that has run is archived rather than removed, so its detail stays fetchable.
+      void qc.invalidateQueries({ queryKey: missionKey(id) });
       qc.setQueryData<Mission[]>(
         MISSIONS_KEY,
         (old) => old?.filter((m) => m.mission_id !== id) ?? [],

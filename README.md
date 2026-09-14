@@ -15,7 +15,10 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. The dev server proxies `/api` and `/ws` to the backend.
+Open http://localhost:5173. The dev server proxies `/api` and `/ws` to the backend and attaches
+the backend's bearer token from `../leitstand-backend/secrets/leitstand_auth_bearer_token`
+(override the path with the shell variable `LEITSTAND_AUTH_TOKEN_FILE`; a missing file means
+an open backend, and the dev server prints which it found at startup).
 
 ## Available Scripts
 
@@ -60,24 +63,40 @@ See `.env.example`.
 
 For production traffic, point `VITE_MAP_TILE_URL` at a paid or self-hosted tile service. The OSM Tile Usage Policy prohibits heavy production use of their public free tile servers.
 
-**Production container** (read by nginx and `docker compose` at runtime):
+**Production container** (`docker-compose.yaml` here; read by `docker compose` and nginx, not Vite):
 
-| Var                  | Default                            | Purpose                              |
-| -------------------- | ---------------------------------- | ------------------------------------ |
-| `BACKEND_URL`        | `http://host.docker.internal:8080` | Upstream the nginx proxy forwards to |
-| `FRONTEND_HOST_PORT` | `80`                               | Host port to publish nginx on        |
+| Var                    | Default                        | Purpose                                              |
+| ---------------------- | ------------------------------ | ---------------------------------------------------- |
+| `BACKEND_URL`          | `http://backend:8080`          | Upstream origin; the default is the backend stack's service on the shared network |
+| `FRONTEND_HOST_PORT`   | `80`                           | Host port to publish nginx on                        |
+| `FRONTEND_BIND_ADDR`   | `0.0.0.0`                      | Interface to publish it on                            |
+| `LEITSTAND_SECRETS_DIR`| `../leitstand-backend/secrets` | Where the backend's bearer token file lives          |
 
 ## Production Deploy
 
 Builds the Vite bundle and serves it via nginx, reverse-proxying `/api/` and `/ws/` to the backend.
+The stack joins the `leitstand` network the backend's compose stack creates, so start that first:
 
 ```bash
-docker compose up -d --build
+cd ../leitstand-backend && docker compose up -d --build   # creates the network, starts the backend
+cd ../leitstand-frontend && docker compose up -d --build  # UI at http://<host>/
 ```
 
-Requires a backend reachable at `BACKEND_URL`. The default expects the backend on the host's port `8080`. Override `BACKEND_URL` to point elsewhere.
+The backend's bearer token is mounted into the container as a secret and attached upstream by
+`docker-entrypoint.d/15-auth-include.sh`, so the browser never holds it and rotating it is a
+restart, not a rebuild. nginx resolves `backend` per request, so the frontend may come up before
+the backend is healthy and simply answers 502 until it is.
+
+There is no login: nginx attaches the bearer to every request it proxies, so whoever can reach
+the UI port can operate the fleet. Publish it only on a network you trust (`FRONTEND_BIND_ADDR`
+narrows the interface). nginx refuses requests whose `Origin` is another site, so a foreign web
+page open in an operator's browser cannot use the bearer.
 
 ## Pre-commit Hooks
 
 `npm install` wires husky via the `prepare` script. The hook runs
 `lint-staged`, applying ESLint and Prettier to staged files only.
+
+## Contact
+
+Jannik Jose, jannik.jose@hs-osnabrueck.de

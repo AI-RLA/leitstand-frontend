@@ -1,6 +1,22 @@
 server {
   listen 80;
   server_name _;
+  server_tokens off;
+
+  # Resolve the upstream per request (Docker's embedded DNS), so start order does not matter.
+  resolver 127.0.0.11 valid=10s ipv6=off;
+  set $backend ${BACKEND_URL};
+
+  # The bearer this proxy attaches applies to every request, like a cookie without SameSite: a page
+  # from another origin open in the operator's browser could use it. Browsers send Origin on every
+  # cross-origin POST and every WebSocket handshake, so a foreign one is refused before proxying.
+  set $foreign_origin 0;
+  if ($http_origin) {
+    set $foreign_origin 1;
+  }
+  if ($http_origin = "$scheme://$http_host") {
+    set $foreign_origin 0;
+  }
 
   root /usr/share/nginx/html;
   index index.html;
@@ -36,12 +52,18 @@ server {
   # is affected. Neither shows up in dev, where Vite proxies
   # straight through.
   location = /api/v1/chat {
-    proxy_pass ${BACKEND_URL};
+    if ($foreign_origin) {
+      return 403;
+    }
+    # Every turn posts the whole conversation, tool results included.
+    client_max_body_size 16m;
+    proxy_pass $backend;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    include /etc/nginx/conf.d/auth.inc;
     proxy_buffering off;
     proxy_cache off;
     proxy_read_timeout 300s;
@@ -49,17 +71,25 @@ server {
 
   # proxy_pass has NO trailing slash on purpose: with one, nginx
   # would strip the /api/ location prefix from the upstream URI.
+  # auth.inc, rendered at start from the mounted secret, attaches the bearer the browser never holds.
   location /api/ {
-    proxy_pass ${BACKEND_URL};
+    if ($foreign_origin) {
+      return 403;
+    }
+    proxy_pass $backend;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    include /etc/nginx/conf.d/auth.inc;
   }
 
   location /ws/ {
-    proxy_pass ${BACKEND_URL};
+    if ($foreign_origin) {
+      return 403;
+    }
+    proxy_pass $backend;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -67,6 +97,7 @@ server {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    include /etc/nginx/conf.d/auth.inc;
     proxy_read_timeout 3600s;
     proxy_send_timeout 3600s;
   }

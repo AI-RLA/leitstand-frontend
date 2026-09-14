@@ -1,19 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   useMission,
-  useMissionLatestState,
   useAssignMission,
   useUnassignMission,
   useDispatchMission,
   useCancelMission,
   usePauseMission,
   useResumeMission,
-  useResetMission,
+  useRestoreMission,
   useDeleteMission,
 } from "@/api/missions";
+import { useRun, useRunState } from "@/api/runs";
 import { apiErrorMessage } from "@/api/client";
-import type { Mission } from "@/api/client";
+import type { CoverageProvenance } from "@/api/client";
 import { useMissionState } from "@/ws/missionState";
 import { useOnlineRobots } from "@/api/robots";
 import { useSites } from "@/api/sites";
@@ -21,10 +21,16 @@ import { useField } from "@/api/fields";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { durationFromMs } from "@/lib/relativeTime";
 import { useNowTick } from "@/lib/useNowTick";
-import { toMissionViewModel, isActiveStatus } from "./adapters";
+import {
+  coverageOf,
+  isActiveStatus,
+  isMissionActive,
+  toMissionViewModel,
+} from "./adapters";
 import { MissionStageTimeline } from "./components/MissionStageTimeline";
 import { MissionPathPreview } from "./components/MissionPathPreview";
 import { MissionFailureCard } from "./components/MissionFailureCard";
+import { RunList } from "./components/RunList";
 
 interface Props {
   id: string;
@@ -39,15 +45,34 @@ export function MissionDetail({ id }: Props) {
   } = useMission(id, {
     refetchInterval: 10_000,
   });
-  const liveState = useMissionState(id);
-  // REST /state is the DURABLE per-stage source for a non-active mission (the WS
-  // latch is in-process and does not survive a backend restart); active missions
-  // use the live WS frame. The hook is called unconditionally (mission may be
-  // undefined on the first render -> disabled).
-  const isActive = !!mission && isActiveStatus(mission.status);
+  const latestRun = mission?.latest_run ?? null;
+  const latestRunId = latestRun?.run_id ?? null;
+  // What the page shows is the latest run; what it lets you do must count every run still
+  // occupying a robot.
+  const latestRunIsActive = isActiveStatus(latestRun?.status);
+  const missionIsActive = !!mission && isMissionActive(mission);
+  const archived = !!mission?.archived_at;
+  // Frames on the mission's topic are filtered to the latest run, so an older run's latched
+  // frame cannot render as this one.
+  const liveState = useMissionState(id, latestRunId);
+  // REST /state is the durable per-stage source for a run that is not active, because the WS
+  // latch is in-process and does not survive a backend restart.
   // Advance the elapsed clock between REST polls and WS frames.
-  useNowTick(1000, isActive);
-  const latest = useMissionLatestState(id, !!mission && !isActive);
+  useNowTick(1000, latestRunIsActive);
+  const latest = useRunState(
+    id,
+    latestRunId,
+    !!latestRun && !latestRunIsActive,
+  );
+  // The latest run's own plan is the stage spine: editing the mission afterwards must not
+  // redraw what that run did.
+  const { data: run } = useRun(id, latestRunId);
+  // Memoised because a fresh object every render defeats the preview's own memo, and the
+  // elapsed-clock tick would then re-upload every waypoint once a second.
+  const mapMission = useMemo(
+    () => (mission && run ? { ...mission, stages: run.stages } : mission),
+    [mission, run],
+  );
   const assign = useAssignMission(id);
   const unassign = useUnassignMission(id);
   const dispatch = useDispatchMission(id);
@@ -55,13 +80,13 @@ export function MissionDetail({ id }: Props) {
   const pause = usePauseMission(id);
   const resume = useResumeMission(id);
   const remove = useDeleteMission(id);
-  const reset = useResetMission(id);
+  const restore = useRestoreMission(id);
 
   const onlineRobots = useOnlineRobots();
   const { data: sites = [] } = useSites();
   // Only a planned mission knows which field it covers, so the boundary is fetched on demand
   // rather than by listing every field.
-  const coverageFieldId = mission?.coverage?.field_id;
+  const coverageFieldId = coverageOf(run?.stages ?? mission?.stages)?.field_id;
   const { data: coverageField } = useField(coverageFieldId ?? "", {
     enabled: !!coverageFieldId,
   });
@@ -100,30 +125,30 @@ export function MissionDetail({ id }: Props) {
   // Active -> live WS frame; otherwise the durable REST /state, falling back to the
   // latched WS frame while the REST fetch is in flight (avoids an all-WAITING flash
   // on the active->terminal flip).
-  const state = isActive ? liveState : (latest.data ?? liveState);
-  // On a cold refresh of a terminal mission, the stages would briefly render at their
-  // WAITING floor before the durable /state arrives and flips them to the resolved
-  // statuses. Suppress that flash with a neutral placeholder until /state lands.
-  const statePending = !isActive && !state && latest.isLoading;
-  const vm = toMissionViewModel(mission, state);
-  const effectiveStatus = vm.status;
-  const isDraft = effectiveStatus === "DRAFT";
-  const isAssigned = effectiveStatus === "ASSIGNED";
-  const isRunning = effectiveStatus === "RUNNING";
-  const isPaused = effectiveStatus === "PAUSED";
-  const isDeletable =
-    isDraft ||
-    effectiveStatus === "SUCCEEDED" ||
-    effectiveStatus === "FAILED" ||
-    effectiveStatus === "CANCELLED";
-  const isResettable =
-    effectiveStatus === "FAILED" || effectiveStatus === "CANCELLED";
+  const state = latestRunIsActive ? liveState : (latest.data ?? liveState);
+  // On a cold refresh of a finished run, the stages would briefly show as WAITING before the
+  // durable /state arrives with the resolved statuses; a neutral placeholder covers that gap.
+  const statePending =
+    !!latestRun && !latestRunIsActive && !state && latest.isLoading;
+  const vm = toMissionViewModel(mission, state, run ?? null);
+  const status = vm.status;
+  const isRunning = status === "RUNNING";
+  const isPaused = status === "PAUSED";
+  const hasRun = latestRun !== null;
+  // A mission can be edited, dispatched and deleted whenever no run is active. Deleting one
+  // that has run archives it instead, and the button says so.
+  const canAct = !missionIsActive && !archived;
+  // Dispatch needs a robot: the default one, or one picked here.
+  const dispatchRobot = selectedRobot || mission.assigned_robot_id || "";
 
   const facts = [
     `${vm.stageCount} ${vm.stageCount === 1 ? "stage" : "stages"}`,
-    vm.robotId ?? "unassigned",
+    mission.assigned_robot_id
+      ? `default robot ${mission.assigned_robot_id}`
+      : "no default robot",
   ];
-  if (isActive) {
+  if (latestRunIsActive) {
+    facts.push(`running on ${vm.robotId}`);
     if (vm.overallProgress !== null) {
       facts.push(`${Math.round(vm.overallProgress * 100)}%`);
     }
@@ -131,21 +156,23 @@ export function MissionDetail({ id }: Props) {
       facts.push(`stage ${vm.currentStageIndex + 1} of ${vm.stageCount}`);
     }
     if (vm.elapsedMs !== null) facts.push(durationFromMs(vm.elapsedMs));
-  } else {
+  } else if (latestRun) {
     facts.push(
-      vm.dispatchedAt
-        ? `dispatched ${new Date(vm.dispatchedAt).toLocaleString()}`
-        : "not dispatched",
+      `last run ${latestRun.status.toLowerCase()} on ${latestRun.robot_id}` +
+        (latestRun.ended_at
+          ? ` · ${new Date(latestRun.ended_at).toLocaleString()}`
+          : ""),
     );
+  } else {
+    facts.push("not run yet");
   }
 
-  const actionError = assign.isError
-    ? apiErrorMessage(assign.error)
-    : dispatch.isError
-      ? apiErrorMessage(dispatch.error)
-      : unassign.isError
-        ? apiErrorMessage(unassign.error)
-        : null;
+  // Every action on this page, pause and resume included: a refused pause that says nothing is
+  // indistinguishable from one that worked and has not refreshed yet.
+  const actionError =
+    [assign, dispatch, unassign, cancel, pause, resume, restore]
+      .map((m) => (m.isError ? apiErrorMessage(m.error) : null))
+      .find((msg) => msg !== null) ?? null;
 
   async function handleAssign(e: React.FormEvent) {
     e.preventDefault();
@@ -167,8 +194,10 @@ export function MissionDetail({ id }: Props) {
   }
 
   async function handleDispatch() {
+    if (!dispatchRobot) return;
     try {
-      await dispatch.mutateAsync();
+      await dispatch.mutateAsync({ robot_id: dispatchRobot });
+      setSelectedRobot("");
     } catch {
       // error tracked in dispatch.isError
     }
@@ -180,7 +209,7 @@ export function MissionDetail({ id }: Props) {
       return;
     }
     try {
-      await cancel.mutateAsync();
+      await cancel.mutateAsync(latestRunId);
     } finally {
       setConfirmCancel(false);
     }
@@ -193,22 +222,37 @@ export function MissionDetail({ id }: Props) {
     }
     try {
       await remove.mutateAsync();
-      navigate({ to: "/missions" });
+      if (!hasRun) navigate({ to: "/missions" });
     } finally {
       setConfirmDelete(false);
     }
   }
 
-  async function handleReset() {
+  async function handleRestore() {
     try {
-      await reset.mutateAsync();
+      await restore.mutateAsync();
     } catch {
-      // error tracked in reset.isError
+      // error tracked in restore.isError
     }
   }
 
   return (
     <div className="p-6 min-h-full flex flex-col [@container(min-width:46.5rem)]:h-full">
+      {archived && (
+        <div className="shrink-0 mb-4 flex items-center justify-between gap-3 rounded-md border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2">
+          <span className="text-ui-sm text-[#92400E]">
+            Archived {new Date(mission.archived_at!).toLocaleString()}. Its runs
+            stay readable; restore it to run or edit it again.
+          </span>
+          <button
+            onClick={handleRestore}
+            disabled={restore.isPending}
+            className="text-ui-sm text-t2 border border-border bg-white px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] disabled:opacity-50 transition-colors"
+          >
+            {restore.isPending ? "Restoring…" : "Restore"}
+          </button>
+        </div>
+      )}
       {/* One band for what the mission is and what can be done to it. Facts sit inline because a
           card each spends the page's widest space on its shortest values. */}
       <div className="shrink-0 flex items-start justify-between gap-4 mb-4">
@@ -217,8 +261,8 @@ export function MissionDetail({ id }: Props) {
             <h2 className="text-ui-xl font-semibold text-t1 leading-tight">
               {mission.name}
             </h2>
-            <StatusPill variant="mission" status={effectiveStatus} />
-            {liveState && isActive && (
+            <StatusPill variant="mission" status={status} />
+            {liveState && latestRunIsActive && (
               <span className="text-ui-xs text-[#16A34A] bg-[#F0FDF4] border border-[#BBF7D0] px-1.5 py-0.5 rounded">
                 live
               </span>
@@ -230,7 +274,7 @@ export function MissionDetail({ id }: Props) {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-          {isDraft &&
+          {canAct &&
             (onlineRobots.length === 0 ? (
               <span className="text-ui-sm text-t3">No robots online</span>
             ) : (
@@ -239,9 +283,12 @@ export function MissionDetail({ id }: Props) {
                   value={selectedRobot}
                   onChange={(e) => setSelectedRobot(e.target.value)}
                   className="border border-border rounded-md px-3 py-1.5 text-ui-sm text-t1 bg-muted focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
-                  required
                 >
-                  <option value="">Select robot…</option>
+                  <option value="">
+                    {mission.assigned_robot_id
+                      ? `Default: ${mission.assigned_robot_id}`
+                      : "Select robot…"}
+                  </option>
                   {onlineRobots.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.id}
@@ -249,35 +296,40 @@ export function MissionDetail({ id }: Props) {
                   ))}
                 </select>
                 <button
+                  type="button"
+                  onClick={handleDispatch}
+                  disabled={!dispatchRobot || dispatch.isPending}
+                  className="text-ui-sm bg-primary text-white px-3.5 py-1.5 rounded-md font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {dispatch.isPending
+                    ? "Dispatching…"
+                    : hasRun
+                      ? "Run again"
+                      : "Dispatch"}
+                </button>
+                <button
                   type="submit"
                   disabled={!selectedRobot || assign.isPending}
-                  className="text-ui-sm bg-primary text-white px-3.5 py-1.5 rounded-md font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] disabled:opacity-50 transition-colors"
+                  title="Make this the robot the mission runs on by default, without starting it."
                 >
                   {assign.isPending ? "Assigning…" : "Assign"}
                 </button>
+                {mission.assigned_robot_id && (
+                  <button
+                    type="button"
+                    onClick={handleUnassign}
+                    disabled={unassign.isPending}
+                    className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] disabled:opacity-50 transition-colors"
+                  >
+                    {unassign.isPending ? "Unassigning…" : "Unassign"}
+                  </button>
+                )}
               </form>
             ))}
-          {isAssigned && (
-            <>
-              <button
-                onClick={handleDispatch}
-                disabled={dispatch.isPending}
-                className="text-ui-sm bg-primary text-white px-3.5 py-1.5 rounded-md font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
-                {dispatch.isPending ? "Dispatching…" : "Dispatch"}
-              </button>
-              <button
-                onClick={handleUnassign}
-                disabled={unassign.isPending}
-                className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] disabled:opacity-50 transition-colors"
-              >
-                {unassign.isPending ? "Unassigning…" : "Unassign"}
-              </button>
-            </>
-          )}
           {isRunning && (
             <button
-              onClick={() => pause.mutate()}
+              onClick={() => pause.mutate(latestRunId)}
               disabled={pause.isPending}
               className="text-ui-sm text-[#B45309] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-1.5 rounded-md hover:bg-[#FEF3C7] disabled:opacity-50 transition-colors"
             >
@@ -286,14 +338,14 @@ export function MissionDetail({ id }: Props) {
           )}
           {isPaused && (
             <button
-              onClick={() => resume.mutate()}
+              onClick={() => resume.mutate(latestRunId)}
               disabled={resume.isPending}
               className="text-ui-sm text-[#16A34A] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-1.5 rounded-md hover:bg-[#DCFCE7] disabled:opacity-50 transition-colors"
             >
               {resume.isPending ? "Resuming…" : "Resume"}
             </button>
           )}
-          {isActive && (
+          {missionIsActive && (
             <button
               onClick={handleCancel}
               disabled={cancel.isPending}
@@ -307,12 +359,12 @@ export function MissionDetail({ id }: Props) {
                 ? "Cancelling…"
                 : confirmCancel
                   ? "Confirm cancel?"
-                  : "Cancel mission"}
+                  : "Cancel run"}
             </button>
           )}
           {/* Only missions the editor can represent. It drops what it cannot, and saving
               replaces the whole stage list. */}
-          {isDraft && mission.stages.every((s) => s.kind === "navigation") && (
+          {canAct && mission.stages.every((s) => s.kind === "navigation") && (
             <Link
               to="/missions/$id/edit"
               params={{ id }}
@@ -321,21 +373,7 @@ export function MissionDetail({ id }: Props) {
               Edit
             </Link>
           )}
-          {isResettable && (
-            <>
-              <button
-                onClick={handleReset}
-                disabled={reset.isPending}
-                className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] disabled:opacity-50 transition-colors"
-              >
-                {reset.isPending ? "Resetting…" : "Reset to draft"}
-              </button>
-              {reset.isError && (
-                <span className="text-ui-xs text-red-500">Reset failed.</span>
-              )}
-            </>
-          )}
-          {isDeletable && (
+          {canAct && (
             <>
               <button
                 onClick={handleDelete}
@@ -345,22 +383,35 @@ export function MissionDetail({ id }: Props) {
                     ? "text-ui-sm text-white bg-red-500 border border-red-500 px-3 py-1.5 rounded-md hover:bg-red-600 disabled:opacity-50 transition-colors"
                     : "text-ui-sm text-red-500 border border-red-200 px-3 py-1.5 rounded-md hover:bg-red-50 hover:border-red-300 disabled:opacity-50 transition-colors"
                 }
+                title={
+                  hasRun
+                    ? "Archives the mission; its runs stay readable and it can be restored."
+                    : "Deletes the mission. It has never run, so nothing else is lost."
+                }
               >
                 {remove.isPending
-                  ? "Deleting…"
+                  ? hasRun
+                    ? "Archiving…"
+                    : "Deleting…"
                   : confirmDelete
-                    ? "Confirm delete?"
-                    : "Delete"}
+                    ? hasRun
+                      ? "Confirm archive?"
+                      : "Confirm delete?"
+                    : hasRun
+                      ? "Archive"
+                      : "Delete"}
               </button>
               {remove.isError && (
-                <span className="text-ui-xs text-red-500">Delete failed.</span>
+                <span className="text-ui-xs text-red-500">
+                  {apiErrorMessage(remove.error)}
+                </span>
               )}
             </>
           )}
         </div>
       </div>
 
-      {isActive && (
+      {latestRunIsActive && (
         <div className="shrink-0 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden mb-4">
           <div
             className="h-full bg-primary transition-all duration-300"
@@ -373,9 +424,9 @@ export function MissionDetail({ id }: Props) {
         <p className="shrink-0 text-ui-sm text-red-500 mb-3">{actionError}</p>
       )}
 
-      {mission.failure_errors && mission.failure_errors.length > 0 && (
+      {run?.failure_errors && run.failure_errors.length > 0 && (
         <div className="shrink-0">
-          <MissionFailureCard errors={mission.failure_errors} />
+          <MissionFailureCard errors={run.failure_errors} />
         </div>
       )}
 
@@ -391,7 +442,7 @@ export function MissionDetail({ id }: Props) {
         {/* Stage table, narrow because it is a list of short rows. Scrolls on its own so a long
             mission cannot push the map off screen. */}
         <div className="flex-1 basis-[17rem] max-w-[22rem] min-w-0 [@container(min-width:46.5rem)]:overflow-y-auto">
-          {/* Stage timeline */}
+          {/* Stage timeline: the latest run's stages when there is one, else the definition's. */}
           <div className="mb-3">
             <MissionStageTimeline
               stages={vm.stages}
@@ -399,7 +450,13 @@ export function MissionDetail({ id }: Props) {
             />
           </div>
 
-          {mission.coverage && <CoveragePlanCard coverage={mission.coverage} />}
+          <div className="mb-3">
+            <RunList mission={mission} currentDigest={mission.stages_digest} />
+          </div>
+
+          {coverageOf(mission.stages) && (
+            <CoveragePlanCard coverage={coverageOf(mission.stages)!} />
+          )}
 
           {/* Audit */}
           <Card title="Audit">
@@ -422,9 +479,10 @@ export function MissionDetail({ id }: Props) {
         <div className="flex-[2] basis-[28rem] min-w-0 flex [@container(max-width:46.5rem)]:order-first">
           <div className="flex-1 h-[60vh] min-h-[20rem] sticky top-0 [@container(min-width:46.5rem)]:h-full">
             <MissionPathPreview
-              mission={mission}
+              mission={mapMission ?? mission}
               state={state}
               sites={sites}
+              siteAnchors={run?.site_anchors}
               field={coverageField}
             />
           </div>
@@ -442,11 +500,7 @@ export function MissionDetail({ id }: Props) {
  * knows whether that edge is a hedge or a mown margin. Shown beside the working area because
  * deepening the headland to contain a turn is paid for in ground left undriven.
  */
-function CoveragePlanCard({
-  coverage,
-}: {
-  coverage: NonNullable<Mission["coverage"]>;
-}) {
+function CoveragePlanCard({ coverage }: { coverage: CoverageProvenance }) {
   const m = coverage.metrics;
   const outside = m.max_excursion_m;
   // Measured against the ground the swaths were allowed to work rather than the whole field: the

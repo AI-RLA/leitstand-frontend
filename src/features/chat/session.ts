@@ -5,8 +5,6 @@ import {
   type UIMessage,
 } from "ai";
 
-import { authHeaders } from "@/api/auth";
-
 // sessionStorage rather than localStorage, deliberately: a browser tab is one operator session, so
 // two windows stay two independent conversations instead of one interleaved thread shared across
 // screens. It also expires when the tab closes, which is the retention we want anyway.
@@ -16,7 +14,6 @@ const MESSAGES_KEY = "leitstand.chat.messages";
 // tool-approval chunks are dropped with no error, so the approval gate is lost rather than broken.
 const transport = new DefaultChatTransport({
   api: "/api/v1/chat",
-  headers: authHeaders,
 });
 
 function readRaw(key: string): string | null {
