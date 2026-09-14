@@ -6,6 +6,9 @@ import { useAnnotateRun, useDeleteRun, useRun, useRunState } from "@/api/runs";
 import { useSites } from "@/api/sites";
 import { useField } from "@/api/fields";
 import { StatusPill } from "@/components/ui/StatusPill";
+import { useRobots } from "@/api/robots";
+import { useNowTick } from "@/lib/useNowTick";
+import { RunStatusLine } from "./components/RunStatusLine";
 import { useMissionState } from "@/ws/missionState";
 import { coverageOf, isActiveStatus, toMissionViewModel } from "./adapters";
 import { MissionStageTimeline } from "./components/MissionStageTimeline";
@@ -28,6 +31,8 @@ export function RunDetail({ missionId, runId }: Props) {
   const { data: mission } = useMission(missionId);
   const { data: run, isLoading, isError } = useRun(missionId, runId);
   const active = isActiveStatus(run?.status);
+  const now = useNowTick(5000, active);
+  const { data: robots = [] } = useRobots();
   const live = useMissionState(active ? missionId : null, runId);
   const durable = useRunState(missionId, runId, !!run && !active);
   const annotate = useAnnotateRun(missionId, runId);
@@ -125,7 +130,15 @@ export function RunDetail({ missionId, runId }: Props) {
           )}
         </div>
         <div className="flex items-start justify-between gap-4">
-          <p className="text-ui-sm text-t3 mt-1">{facts.join(" · ")}</p>
+          <div>
+            <p className="text-ui-sm text-t3 mt-1">{facts.join(" · ")}</p>
+            <RunStatusLine
+              run={run}
+              transitions={run.transitions}
+              robot={robots.find((r) => r.id === run.robot_id)}
+              now={now}
+            />
+          </div>
           {!active && (
             <button
               onClick={handleDelete}

@@ -66,6 +66,8 @@ export type MissionUpdate = components["schemas"]["MissionUpdate"];
 export type RunStatus = components["schemas"]["RunStatus"];
 export type RunSummary = components["schemas"]["RunSummaryView"];
 export type Run = components["schemas"]["RunView"];
+export type RunTransition = components["schemas"]["RunTransitionView"];
+export type CancelMode = components["schemas"]["CancelMode"];
 export type RunSiteAnchor = components["schemas"]["RunSiteAnchor"];
 export type CoverageProvenance = components["schemas"]["CoverageProvenance"];
 export type RunState = components["schemas"]["RunStateView"];
@@ -148,10 +150,14 @@ export const api = {
       method: "POST",
     }),
   // A run id is needed only when more than one run of the mission is active.
-  cancelMission: (id: string, runId: string | null = null) =>
+  cancelMission: (
+    id: string,
+    runId: string | null = null,
+    mode: CancelMode = "immediate",
+  ) =>
     request<Mission>(`/missions/${encodeURIComponent(id)}/cancel`, {
       method: "POST",
-      body: JSON.stringify({ run_id: runId }),
+      body: JSON.stringify({ run_id: runId, mode }),
     }),
   pauseMission: (id: string, runId: string | null = null) =>
     request<Mission>(`/missions/${encodeURIComponent(id)}/pause`, {

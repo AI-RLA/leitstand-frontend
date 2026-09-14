@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
+  type CancelMode,
   type Mission,
   type MissionCreate,
   type MissionDispatchBody,
@@ -87,7 +88,11 @@ export function useDispatchMission(id: string) {
 export function useCancelMission(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (runId: string | null = null) => api.cancelMission(id, runId),
+    mutationFn: ({
+      runId = null,
+      mode = "immediate",
+    }: { runId?: string | null; mode?: CancelMode } = {}) =>
+      api.cancelMission(id, runId, mode),
     onSuccess: (updated: Mission) => {
       qc.setQueryData(missionKey(id), updated);
       qc.invalidateQueries({ queryKey: MISSIONS_KEY });

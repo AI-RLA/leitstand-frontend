@@ -15,15 +15,18 @@ import { useRun, useRunState } from "@/api/runs";
 import { apiErrorMessage } from "@/api/client";
 import type { CoverageProvenance } from "@/api/client";
 import { useMissionState } from "@/ws/missionState";
-import { useOnlineRobots } from "@/api/robots";
+import { useOnlineRobots, useRobots } from "@/api/robots";
 import { useSites } from "@/api/sites";
 import { useField } from "@/api/fields";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { durationFromMs } from "@/lib/relativeTime";
 import { useNowTick } from "@/lib/useNowTick";
+import { RunStatusLine } from "./components/RunStatusLine";
+import { SplitCancelButton } from "./components/SplitCancelButton";
 import {
   coverageOf,
   isActiveStatus,
+  isConfirming,
   isMissionActive,
   toMissionViewModel,
 } from "./adapters";
@@ -58,7 +61,7 @@ export function MissionDetail({ id }: Props) {
   // REST /state is the durable per-stage source for a run that is not active, because the WS
   // latch is in-process and does not survive a backend restart.
   // Advance the elapsed clock between REST polls and WS frames.
-  useNowTick(1000, latestRunIsActive);
+  const now = useNowTick(1000, latestRunIsActive);
   const latest = useRunState(
     id,
     latestRunId,
@@ -83,6 +86,7 @@ export function MissionDetail({ id }: Props) {
   const restore = useRestoreMission(id);
 
   const onlineRobots = useOnlineRobots();
+  const { data: robots = [] } = useRobots();
   const { data: sites = [] } = useSites();
   // Only a planned mission knows which field it covers, so the boundary is fetched on demand
   // rather than by listing every field.
@@ -134,6 +138,7 @@ export function MissionDetail({ id }: Props) {
   const status = vm.status;
   const isRunning = status === "RUNNING";
   const isPaused = status === "PAUSED";
+  const confirming = isConfirming(status);
   const hasRun = latestRun !== null;
   // A mission can be edited, dispatched and deleted whenever no run is active. Deleting one
   // that has run archives it instead, and the button says so.
@@ -203,13 +208,13 @@ export function MissionDetail({ id }: Props) {
     }
   }
 
-  async function handleCancel() {
+  async function handleCancel(mode: "immediate" | "graceful" = "immediate") {
     if (!confirmCancel) {
       setConfirmCancel(true);
       return;
     }
     try {
-      await cancel.mutateAsync(latestRunId);
+      await cancel.mutateAsync({ runId: latestRunId, mode });
     } finally {
       setConfirmCancel(false);
     }
@@ -272,6 +277,21 @@ export function MissionDetail({ id }: Props) {
           {mission.description && (
             <p className="text-ui-sm text-t3 mt-0.5">{mission.description}</p>
           )}
+          {latestRun && (
+            <RunStatusLine
+              run={latestRun}
+              transitions={run?.transitions}
+              robot={robots.find((r) => r.id === latestRun.robot_id)}
+              now={now}
+              onCancel={latestRunIsActive ? () => handleCancel() : undefined}
+              onSendAgain={
+                latestRun.status === "CANCELLING"
+                  ? () =>
+                      cancel.mutate({ runId: latestRunId, mode: "immediate" })
+                  : undefined
+              }
+            />
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
           {canAct &&
@@ -327,40 +347,31 @@ export function MissionDetail({ id }: Props) {
                 )}
               </form>
             ))}
-          {isRunning && (
+          {(isRunning || status === "PAUSING") && (
             <button
               onClick={() => pause.mutate(latestRunId)}
-              disabled={pause.isPending}
+              disabled={pause.isPending || confirming}
               className="text-ui-sm text-[#B45309] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-1.5 rounded-md hover:bg-[#FEF3C7] disabled:opacity-50 transition-colors"
             >
               {pause.isPending ? "Pausing…" : "Pause"}
             </button>
           )}
-          {isPaused && (
+          {(isPaused || status === "RESUMING") && (
             <button
               onClick={() => resume.mutate(latestRunId)}
-              disabled={resume.isPending}
+              disabled={resume.isPending || confirming}
               className="text-ui-sm text-[#16A34A] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-1.5 rounded-md hover:bg-[#DCFCE7] disabled:opacity-50 transition-colors"
             >
               {resume.isPending ? "Resuming…" : "Resume"}
             </button>
           )}
           {missionIsActive && (
-            <button
-              onClick={handleCancel}
-              disabled={cancel.isPending}
-              className={
-                confirmCancel
-                  ? "text-ui-sm text-white bg-red-500 border border-red-500 px-3 py-1.5 rounded-md hover:bg-red-600 disabled:opacity-50 transition-colors"
-                  : "text-ui-sm text-red-500 border border-red-200 px-3 py-1.5 rounded-md hover:bg-red-50 hover:border-red-300 disabled:opacity-50 transition-colors"
-              }
-            >
-              {cancel.isPending
-                ? "Cancelling…"
-                : confirmCancel
-                  ? "Confirm cancel?"
-                  : "Cancel run"}
-            </button>
+            <SplitCancelButton
+              confirming={confirmCancel}
+              pending={cancel.isPending}
+              resend={status === "CANCELLING"}
+              onCancel={(mode) => void handleCancel(mode)}
+            />
           )}
           {/* Only missions the editor can represent. It drops what it cannot, and saving
               replaces the whole stage list. */}

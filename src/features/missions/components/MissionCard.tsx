@@ -80,6 +80,12 @@ function SecondaryLine({ vm }: { vm: MissionViewModel }) {
     const stageNum =
       vm.currentStageIndex !== null ? vm.currentStageIndex + 1 : "?";
     text = `Paused · stage ${stageNum}/${vm.stageCount}`;
+  } else if (vm.status === "PAUSING") {
+    text = "Pausing… waiting for the robot";
+  } else if (vm.status === "RESUMING") {
+    text = "Resuming… waiting for the robot";
+  } else if (vm.status === "CANCELLING") {
+    text = "Cancelling… waiting for the robot";
   } else if (vm.status === null) {
     text = vm.assignedRobotId
       ? `Ready for ${vm.assignedRobotId} · not run yet`

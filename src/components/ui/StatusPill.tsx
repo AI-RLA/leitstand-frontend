@@ -15,7 +15,27 @@ const MISSION_STYLES: Record<MissionPillStatus, { pill: string; dot: string }> =
     FAILED: { pill: "bg-[#FEF2F2] text-[#B91C1C]", dot: "bg-[#EF4444]" },
     CANCELLED: { pill: "bg-muted text-[#64748B]", dot: "bg-[#94A3B8]" },
     REJECTED: { pill: "bg-[#FEF2F2] text-[#B91C1C]", dot: "bg-[#F87171]" },
+    // Asked, not yet confirmed by the robot: the target state's colour with a hollow dot.
+    PAUSING: {
+      pill: "bg-[#FFFBEB] text-[#B45309]",
+      dot: "bg-transparent ring-2 ring-inset ring-[#F59E0B]",
+    },
+    RESUMING: {
+      pill: "bg-[#F0FDF4] text-[#16A34A]",
+      dot: "bg-transparent ring-2 ring-inset ring-[#16A34A]",
+    },
+    CANCELLING: {
+      pill: "bg-muted text-[#64748B]",
+      dot: "bg-transparent ring-2 ring-inset ring-[#94A3B8]",
+    },
   };
+
+const MISSION_LABEL: Partial<Record<MissionPillStatus, string>> = {
+  NOT_RUN: "NOT RUN",
+  PAUSING: "PAUSING…",
+  RESUMING: "RESUMING…",
+  CANCELLING: "CANCELLING…",
+};
 
 const STAGE_STYLES: Record<StageStatus, { pill: string; dot: string }> = {
   WAITING: { pill: "bg-[#F1F5F9] text-[#64748B]", dot: "bg-[#94A3B8]" },
@@ -87,7 +107,7 @@ export function StatusPill(props: StatusPillProps) {
         className,
       )}
     >
-      {label === "NOT_RUN" ? "NOT RUN" : label}
+      {MISSION_LABEL[label as MissionPillStatus] ?? label}
     </span>
   );
 }

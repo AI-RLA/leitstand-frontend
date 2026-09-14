@@ -23,7 +23,15 @@ export function isActiveStatus(status: RunStatus | null | undefined): boolean {
     status === "PENDING" ||
     status === "DISPATCHED" ||
     status === "RUNNING" ||
-    status === "PAUSED"
+    status === "PAUSED" ||
+    isConfirming(status)
+  );
+}
+
+/** An operator's pause, resume or cancel that the robot has not reported yet. */
+export function isConfirming(status: RunStatus | null | undefined): boolean {
+  return (
+    status === "PAUSING" || status === "RESUMING" || status === "CANCELLING"
   );
 }
 

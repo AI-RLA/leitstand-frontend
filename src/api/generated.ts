@@ -880,6 +880,30 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * LastReportView
+         * @description The most recent state report the robot sent for the run.
+         */
+        LastReportView: {
+            /**
+             * Received At
+             * Format: date-time
+             * @description When the backend received it, by its own clock.
+             */
+            received_at: string;
+            /**
+             * Header Id
+             * @description The robot's report counter; later reports have higher values.
+             */
+            header_id: number;
+            exec_status: components["schemas"]["MissionExecStatus"];
+            /**
+             * Robot Timestamp
+             * Format: date-time
+             * @description When the robot sent it, by the robot's clock.
+             */
+            robot_timestamp: string;
+        };
         /** Metadata */
         Metadata: {
             /** Id */
@@ -968,8 +992,7 @@ export interface components {
          * MissionError
          * @description A structured error report attached to a stage or mission.
          *
-         *     Mirrors the proto ``Error`` (severity / type / references / description); ``origin``
-         *     is a backend-only marker distinguishing a robot fault from a backend-authored cause.
+         *     ``origin`` says whether the robot reported it or the backend authored it.
          */
         MissionError: {
             origin: components["schemas"]["ErrorOrigin"];
@@ -984,6 +1007,15 @@ export interface components {
             /** Description */
             description: string;
         };
+        /**
+         * MissionExecStatus
+         * @description The robot's execution status: live (RUNNING/PAUSED) or terminal.
+         *
+         *     Execution truth, not the mission lifecycle status (which the backend owns and
+         *     derives from this). SUCCEEDED, FAILED, and CANCELLED are terminal.
+         * @enum {string}
+         */
+        MissionExecStatus: "RUNNING" | "PAUSED" | "SUCCEEDED" | "FAILED" | "CANCELLED";
         /** MissionUpdate */
         MissionUpdate: {
             /** Name */
@@ -1278,9 +1310,11 @@ export interface components {
          *     ``PENDING`` is the run row committed before the robot has answered the dispatch. ``REJECTED``
          *     is kept apart from ``FAILED`` because they mean different things for the robot: a rejection
          *     means it is definitely not driving, while a timeout or a mid-run failure means it may be.
+         *     ``PAUSING``, ``RESUMING`` and ``CANCELLING`` hold an operator's request until the robot's own
+         *     report confirms it.
          * @enum {string}
          */
-        RunStatus: "PENDING" | "DISPATCHED" | "RUNNING" | "PAUSED" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "REJECTED";
+        RunStatus: "PENDING" | "DISPATCHED" | "RUNNING" | "PAUSED" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "REJECTED" | "PAUSING" | "RESUMING" | "CANCELLING";
         /**
          * RunSummaryView
          * @description A run without its stages: what a list shows, and what a mission carries as ``latest_run``.
@@ -1318,11 +1352,8 @@ export interface components {
             started_at: string | null;
             /** Ended At */
             ended_at: string | null;
-            /**
-             * Last Frame At
-             * @description When the robot last reported on this run, by the backend's clock.
-             */
-            last_frame_at: string | null;
+            /** @description The robot's most recent report on this run; null before the first one. */
+            last_report: components["schemas"]["LastReportView"] | null;
             /**
              * Updated At
              * Format: date-time
@@ -1330,6 +1361,45 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * RunTransitionView
+         * @description One status change of the run, in the order they happened.
+         */
+        RunTransitionView: {
+            from_status: components["schemas"]["RunStatus"];
+            to_status: components["schemas"]["RunStatus"];
+            trigger: components["schemas"]["RunTrigger"];
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Actor
+             * @description Who caused it: the operator's request, the robot's report, or the backend.
+             * @enum {string}
+             */
+            actor: "operator" | "robot" | "backend";
+            /**
+             * Acknowledged
+             * @description For an operator's request: true when the robot replied that it applied it, false when it refused or did not answer; null while unknown or for other transitions.
+             */
+            acknowledged?: boolean | null;
+            /** Detail */
+            detail?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * RunTrigger
+         * @description A lifecycle transition trigger: the named cause of a status change.
+         *
+         *     The ``*_REQUEST`` triggers are the operator asking; ``PAUSE``, ``RESUME``, ``ACK``,
+         *     ``COMPLETE``, ``FAIL`` and ``CANCEL`` are the robot reporting; the rest are the backend
+         *     settling a reply, a silence or a robot that came back without the run.
+         * @enum {string}
+         */
+        RunTrigger: "accept" | "reject" | "timeout" | "dispatch_unconfirmed" | "reconcile" | "pause_request" | "resume_request" | "cancel_request" | "ack" | "pause" | "resume" | "complete" | "fail" | "cancel";
         /**
          * RunView
          * @description A run with the stages it was dispatched with, frozen as they stood, and any failure.
@@ -1367,11 +1437,8 @@ export interface components {
             started_at: string | null;
             /** Ended At */
             ended_at: string | null;
-            /**
-             * Last Frame At
-             * @description When the robot last reported on this run, by the backend's clock.
-             */
-            last_frame_at: string | null;
+            /** @description The robot's most recent report on this run; null before the first one. */
+            last_report: components["schemas"]["LastReportView"] | null;
             /**
              * Updated At
              * Format: date-time
@@ -1389,6 +1456,11 @@ export interface components {
             } | null;
             /** Failure Errors */
             failure_errors?: components["schemas"]["MissionError"][] | null;
+            /**
+             * Transitions
+             * @description The run's status changes so far, oldest first.
+             */
+            transitions?: components["schemas"]["RunTransitionView"][];
         };
         /**
          * Segment
@@ -1536,16 +1608,19 @@ export interface components {
              * @enum {string}
              */
             status_source: "robot" | "backend";
+            /**
+             * Parent Stage Id
+             * @description Set on a cleanup stage: the stage whose cancel started it.
+             */
+            parent_stage_id?: string | null;
         };
         /**
          * StageStatus
          * @description Canonical per-stage status, covering both robot-reported and backend-resolved values.
          *
-         *     The robot reports ``WAITING`` through ``FAILED`` on the wire. ``CANCELLED`` and
-         *     ``SKIPPED`` are backend-only: the robot cannot express them (it reports a cancelled
-         *     goal as ``FAILED`` and never reports a stage it did not reach), so the backend assigns
-         *     them when it resolves the final per-stage view at the terminal mission transition.
-         *     Inbound frames carry only the wire values; the anti-corruption mapper rejects any other.
+         *     A robot reports the stage a cancel interrupted as ``CANCELLED`` and the stages it never
+         *     started as ``SKIPPED``; the backend assigns the same two when it closes a run the robot did
+         *     not report to the end.
          * @enum {string}
          */
         StageStatus: "WAITING" | "INITIALIZING" | "RUNNING" | "PAUSED" | "FINISHED" | "FAILED" | "CANCELLED" | "SKIPPED";

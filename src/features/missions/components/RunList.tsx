@@ -10,7 +10,7 @@ import { apiErrorMessage } from "@/api/client";
 import type { Mission, RunSummary } from "@/api/client";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { relativeTime } from "@/lib/relativeTime";
-import { isActiveStatus } from "../adapters";
+import { isActiveStatus, isConfirming } from "../adapters";
 
 /**
  * Every run a mission has had, newest first. Runs whose plan digest matches the mission's
@@ -128,7 +128,7 @@ function RunActions({
       {run.status === "RUNNING" && (
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || isConfirming(run.status)}
           onClick={() => pause.mutate(run.run_id)}
           className="text-ui-xs text-t2 border border-border rounded px-2 py-0.5 hover:bg-white disabled:opacity-50 transition"
         >
@@ -154,7 +154,7 @@ function RunActions({
             return;
           }
           setConfirming(false);
-          cancel.mutate(run.run_id);
+          cancel.mutate({ runId: run.run_id });
         }}
         className={
           confirming
