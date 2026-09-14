@@ -65,12 +65,12 @@ For production traffic, point `VITE_MAP_TILE_URL` at a paid or self-hosted tile 
 
 **Production container** (`docker-compose.yaml` here; read by `docker compose` and nginx, not Vite):
 
-| Var                    | Default                        | Purpose                                              |
-| ---------------------- | ------------------------------ | ---------------------------------------------------- |
-| `BACKEND_URL`          | `http://backend:8080`          | Upstream origin; the default is the backend stack's service on the shared network |
-| `FRONTEND_HOST_PORT`   | `80`                           | Host port to publish nginx on                        |
-| `FRONTEND_BIND_ADDR`   | `0.0.0.0`                      | Interface to publish it on                            |
-| `LEITSTAND_SECRETS_DIR`| `../leitstand-backend/secrets` | Where the backend's bearer token file lives          |
+| Var                     | Default                        | Purpose                                                                           |
+| ----------------------- | ------------------------------ | --------------------------------------------------------------------------------- |
+| `BACKEND_URL`           | `http://backend:8080`          | Upstream origin; the default is the backend stack's service on the shared network |
+| `FRONTEND_HOST_PORT`    | `80`                           | Host port to publish nginx on                                                     |
+| `FRONTEND_BIND_ADDR`    | `0.0.0.0`                      | Interface to publish it on                                                        |
+| `LEITSTAND_SECRETS_DIR` | `../leitstand-backend/secrets` | Where the backend's bearer token file lives                                       |
 
 ## Production Deploy
 
