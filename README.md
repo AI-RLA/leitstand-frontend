@@ -6,7 +6,7 @@ React 19, TypeScript, Tailwind, and MapLibre GL.
 ## Prerequisites
 
 - Node 24 or newer.
-- A running [leitstand-backend](https://gitlab.hs-osnabrueck.de/agro-technicum/ag-intelligente-agrarsysteme/workinggroup-projects/leitstand/leitstand-backend). The dev server proxies to `http://localhost:8080` by default. Change `vite.config.ts` if it lives elsewhere.
+- A running [leitstand-backend](https://github.com/AI-RLA/leitstand-backend). The dev server proxies to `http://localhost:8080` by default. Change `vite.config.ts` if it lives elsewhere.
 
 ## Getting Started
 
