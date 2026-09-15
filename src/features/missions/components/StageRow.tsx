@@ -1,11 +1,15 @@
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CoverageStageBody } from "./CoverageStageBody";
 import { NavigationStageBody } from "./NavigationStageBody";
-import { StageKindSelect } from "./StageKindSelect";
-import type { StageDraft, StageKind } from "./stageTypes";
+import {
+  KIND_LABEL,
+  type CoverageStageDraft,
+  type StageDraft,
+} from "./stageTypes";
 import type { WaypointFrame } from "./FrameChip";
 import type { WaypointDraft } from "./WaypointRow";
-import type { Site } from "@/api/client";
+import type { Field, Robot, Site } from "@/api/client";
 
 // Re-export for convenience so consumers can keep importing `StageDraft`
 // from this file. The discriminated union itself lives in stageTypes.ts.
@@ -15,9 +19,11 @@ interface StageRowProps {
   index: number;
   stage: StageDraft;
   sites: Site[];
+  fields: Field[];
+  robots: Robot[];
   totalStages: number;
   isAdding: boolean;
-  onChangeKind: (k: StageKind) => void;
+  onChangeCoverage: (patch: Partial<CoverageStageDraft>) => void;
   onChangeFrame: (f: WaypointFrame) => void;
   onChangeSiteId: (id: string) => void;
   onChangeWaypoint: (
@@ -38,9 +44,11 @@ export function StageRow({
   index,
   stage,
   sites,
+  fields,
+  robots,
   totalStages,
   isAdding,
-  onChangeKind,
+  onChangeCoverage,
   onChangeFrame,
   onChangeSiteId,
   onChangeWaypoint,
@@ -59,13 +67,14 @@ export function StageRow({
         isAdding ? "border-primary" : "border-border",
       )}
     >
-      {/* Header — stage index, kind label, reorder/remove controls */}
       <div className="px-3 py-2 border-b border-border bg-muted flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-ui-xs uppercase tracking-wider font-semibold text-t3">
             Stage {index + 1}
           </span>
-          <StageKindSelect value={stage.kind} onChange={onChangeKind} />
+          <span className="text-ui-xs font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-[#F1F5F9] text-t2">
+            {KIND_LABEL[stage.kind]}
+          </span>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           <IconButton label="Move up" disabled={index === 0} onClick={onMoveUp}>
@@ -78,20 +87,24 @@ export function StageRow({
           >
             <ChevronDown className="w-3.5 h-3.5" />
           </IconButton>
-          {totalStages > 1 && (
-            <button
-              type="button"
-              onClick={onRemoveStage}
-              className="text-ui-xs text-red-400 hover:text-red-600 transition-colors ml-1"
-            >
-              Remove
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onRemoveStage}
+            className="text-ui-xs text-red-400 hover:text-red-600 transition-colors ml-1"
+          >
+            Remove
+          </button>
         </div>
       </div>
 
-      {/* Body routed by kind. Switch will fall through when new kinds land
-          and TypeScript will require a matching body component. */}
+      {stage.kind === "coverage" && (
+        <CoverageStageBody
+          stage={stage}
+          fields={fields}
+          robots={robots}
+          onChange={onChangeCoverage}
+        />
+      )}
       {stage.kind === "navigation" && (
         <NavigationStageBody
           stage={stage}

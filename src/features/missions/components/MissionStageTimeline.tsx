@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Ban, Check, X } from "lucide-react";
 import { StatusPill } from "@/components/ui/StatusPill";
+import { formatArea } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import { durationFromMs } from "@/lib/relativeTime";
-import type { StageStatus } from "@/api/client";
+import { useFields } from "@/api/fields";
+import type { CoverageProvenance, StageStatus } from "@/api/client";
 import type { StageViewModel } from "../adapters";
 
 interface MissionStageTimelineProps {
@@ -17,6 +19,14 @@ function formatDistance(m: number | null): string | null {
   if (m === null) return null;
   if (m < 1000) return `${Math.round(m)} m`;
   return `${(m / 1000).toFixed(2)} km`;
+}
+
+// Rounding to nearest would turn a real excursion of a few millimetres into a flat zero, so
+// anything under the displayed resolution is reported as the bound it is.
+function excursionLabel(outside: number | null | undefined): string {
+  if (outside == null) return "not measured";
+  if (outside > 0 && outside < 0.005) return "< 0.01 m";
+  return `${outside.toFixed(2)} m`;
 }
 
 function frameLabel(frame: StageViewModel["frame"]): string | null {
@@ -215,12 +225,27 @@ export function MissionStageTimeline({
                       ? `${stage.waypointCount} waypoint${stage.waypointCount === 1 ? "" : "s"}`
                       : `${stage.swathCount} swath${stage.swathCount === 1 ? "" : "s"}`}
                   </button>
-                  {frame && <> · {frame}</>}
+                  {stage.coverage && (
+                    <> at {stage.coverage.params.operation_width_m} m</>
+                  )}
+                  {frame && !stage.coverage && <> · {frame}</>}
                   {dist && <> · {dist}</>}
+                  {stage.coverage && (
+                    <>
+                      {" "}
+                      · {formatArea(
+                        stage.coverage.metrics.covered_area_m2,
+                      )}{" "}
+                      worked
+                    </>
+                  )}
                   {showDuration && <> · {durationFromMs(durationMs)}</>}
                 </p>
 
-                {isExpanded && (
+                {isExpanded && stage.coverage && (
+                  <CoverageDetails coverage={stage.coverage} />
+                )}
+                {isExpanded && !stage.coverage && (
                   <ul className="mt-1 space-y-0.5 font-mono text-ui-xs text-t3">
                     {stage.waypoints
                       .slice(0, WAYPOINTS_LISTED)
@@ -264,5 +289,94 @@ export function MissionStageTimeline({
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * What the planner produced and what it was given. Excursion is called out because Fields2Cover
+ * constrains the swaths to the field and never the turns joining them, and only the operator
+ * knows whether the edge is a hedge or a mown margin.
+ */
+function CoverageDetails({ coverage }: { coverage: CoverageProvenance }) {
+  const { data: fields = [] } = useFields();
+  const field = fields.find((f) => f.id === coverage.field_id);
+  const { params, metrics } = coverage;
+  const outside = metrics.max_excursion_m;
+  // Measured against the field the operator asked to have covered rather than the mainland, so
+  // a chosen headland still counts as unworked; a share above 100 % (an older planner) is left out.
+  const rawShare = Math.round(
+    (metrics.covered_area_m2 / coverage.field_area_m2) * 100,
+  );
+  const share = rawShare <= 100 ? rawShare : null;
+  return (
+    <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-ui-xs">
+      <Row label="Field" value={field?.name ?? "deleted"} />
+      <Row
+        label="Working area"
+        value={`${Math.round(metrics.covered_area_m2)} m² of ${Math.round(coverage.field_area_m2)} m²${share === null ? "" : ` (${share}%)`}`}
+      />
+      <Row label="Implement width" value={`${params.operation_width_m} m`} />
+      <Row label="Turning radius" value={`${params.turning_radius_m} m`} />
+      <Row label="Headland" value={`${params.headland_width_m} m`} />
+      {params.swath_angle_deg != null && (
+        <Row
+          label="Swath direction"
+          value={`${Number(params.swath_angle_deg.toFixed(1))}°`}
+        />
+      )}
+      {params.allow_overlap != null && (
+        <Row
+          label="Last pass"
+          value={params.allow_overlap ? "may overlap" : "skipped if partial"}
+        />
+      )}
+      <Row
+        label="Outside boundary"
+        value={excursionLabel(outside)}
+        warn={outside != null && outside > 0.05}
+      />
+      {metrics.path_length_m != null && (
+        <Row
+          label="Path length"
+          value={`${Math.round(metrics.path_length_m)} m`}
+        />
+      )}
+      <Row
+        label="Machine values"
+        value={
+          coverage.planned_for_robot_id
+            ? `from ${coverage.planned_for_robot_id}`
+            : "entered by hand"
+        }
+      />
+      <Row
+        label="Planned"
+        value={`${new Date(coverage.planned_at).toLocaleString()} · ${coverage.planner_version}`}
+      />
+    </dl>
+  );
+}
+
+function Row({
+  label,
+  value,
+  warn,
+}: {
+  label: string;
+  value: string;
+  warn?: boolean;
+}) {
+  return (
+    <>
+      <dt className="text-t3">{label}</dt>
+      <dd
+        className={cn(
+          "tabular-nums",
+          warn ? "text-[#B45309] font-medium" : "text-t2",
+        )}
+      >
+        {value}
+      </dd>
+    </>
   );
 }

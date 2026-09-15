@@ -1,6 +1,9 @@
-export function relativeTime(iso: string | null | undefined): string {
+export function relativeTime(
+  iso: string | null | undefined,
+  now: number = Date.now(),
+): string {
   if (!iso) return "—";
-  const ms = Date.now() - new Date(iso).getTime();
+  const ms = now - new Date(iso).getTime();
   const sec = Math.abs(ms) / 1000;
   const past = ms >= 0;
   let val: number;

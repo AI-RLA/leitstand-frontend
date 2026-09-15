@@ -101,6 +101,18 @@ export function useCancelMission(id: string) {
   });
 }
 
+export function useCloseMissionRun(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string | null = null) => api.closeMissionRun(id, runId),
+    onSuccess: (updated: Mission) => {
+      qc.setQueryData(missionKey(id), updated);
+      qc.invalidateQueries({ queryKey: MISSIONS_KEY });
+      qc.invalidateQueries({ queryKey: missionRunsKey(id) });
+    },
+  });
+}
+
 export function usePauseMission(id: string) {
   const qc = useQueryClient();
   return useMutation({

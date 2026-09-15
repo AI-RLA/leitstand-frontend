@@ -137,10 +137,12 @@ function CurrentMissionCard({ mission }: { mission: Mission }) {
     mission.latest_run?.run_id ?? null,
   );
   const vm = toMissionViewModel(mission, live);
+  const runId = mission.latest_run?.run_id;
+  // The running run's own page is where the controls are; the mission page holds the definition.
   return (
     <Link
-      to="/missions/$id"
-      params={{ id: vm.id }}
+      to={runId ? "/missions/$id/runs/$runId" : "/missions/$id"}
+      params={runId ? { id: vm.id, runId } : { id: vm.id }}
       className="block border border-border rounded-md p-2.5 hover:bg-muted transition-colors"
     >
       <div className="flex items-center justify-between gap-2 mb-1">

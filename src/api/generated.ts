@@ -159,13 +159,16 @@ export interface paths {
         put?: never;
         /**
          * Create Mission
-         * @description Create a mission from a name and an ordered list of navigation stages.
+         * @description Create a mission from a name and an ordered list of stages.
          *
-         *     Every waypoint must be a coordinate the operator stated. Do not compute one: not from a field
-         *     or site boundary, not from a robot's current position, and not by converting a distance in
-         *     metres into degrees. If you were given an area, a row spacing or a bearing rather than
-         *     coordinates, do not call this: use plan_coverage_mission for a field that should be covered, and
-         *     otherwise say you cannot work the coordinates out and ask for them.
+         *     A navigation stage lists waypoints; every one must be a coordinate the operator stated. Do
+         *     not compute one: not from a field or site boundary, not from a robot's current position, and
+         *     not by converting a distance in metres into degrees. A coverage stage names a field, the
+         *     implement's working width and the robot whose factsheet supplies the machine values, and the
+         *     backend plans its path; for a whole field to be covered, prefer plan_coverage_mission, which
+         *     takes the same inputs and names the mission after the field. If you were given an area, a row
+         *     spacing or a bearing rather than coordinates, do not write a navigation stage: say you cannot
+         *     work the coordinates out and ask for them.
          *
          *     ``stages`` is a list of stage objects, not text containing a list.
          *
@@ -215,8 +218,8 @@ export interface paths {
          *     editing the definition never changes what a run did or is doing. Identify the mission by
          *     mission_id from list_missions. Supplying stages replaces the existing ones; a stage that
          *     carries its stage_id keeps its identity across the edit, one without gets a new id, and one
-         *     left out is removed. A planned coverage stage is carried by its stage_id alone; its path
-         *     cannot be written here, only re-planned.
+         *     left out is removed. A coverage stage is carried unchanged by its stage_id alone, or
+         *     re-planned under the same id when its field, width or machine values are given again.
          */
         patch: operations["update_mission"];
         trace?: never;
@@ -386,6 +389,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/missions/{mission_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Mission Run
+         * @description End a run whose robot is offline, without the robot's confirmation.
+         *
+         *     The run becomes CANCELLED on the operator's word. Refused while the robot is online, where
+         *     cancel_mission asks the robot and lets it confirm. If the robot later reconnects still holding
+         *     the run, it is told to cancel. With more than one run active, ``run_id`` says which.
+         */
+        post: operations["close_mission_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/missions/{mission_id}/pause": {
         parameters: {
             query?: never;
@@ -425,6 +452,29 @@ export interface paths {
          *     Identify it by mission_id. With more than one run active, ``run_id`` says which.
          */
         post: operations["resume_mission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coverage/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Coverage
+         * @description Plan a coverage stage for a field and return it without saving anything.
+         *
+         *     Use it to show the operator what a plan would look like: its swaths, the ground worked and how
+         *     far the turns leave the field. create_mission with the same inputs stores it.
+         */
+        get: operations["preview_coverage"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -752,8 +802,18 @@ export interface components {
             metrics: components["schemas"]["CoverageMetrics"];
             /** Planner Version */
             planner_version: string;
-            /** Planned For Robot Id */
-            planned_for_robot_id: string;
+            /**
+             * Planned For Robot Id
+             * @description Robot whose factsheet supplied the machine values; None when they were entered by hand.
+             */
+            planned_for_robot_id?: string | null;
+            /**
+             * Param Sources
+             * @description Where each machine value came from, by parameter name: 'factsheet:<robot_id>', 'manual', 'turning_radius' for a headland defaulted to the radius, or 'planner' for a swath direction the planner chose. Absent on a plan made before it was recorded.
+             */
+            param_sources?: {
+                [key: string]: string;
+            } | null;
             /**
              * Planned At
              * Format: date-time
@@ -793,24 +853,61 @@ export interface components {
             provenance: components["schemas"]["CoverageProvenance"];
         };
         /**
-         * CoverageStageRef
-         * @description A coverage stage this mission already has, carried through an edit unchanged.
+         * CoverageStageInput
+         * @description A coverage stage: carried unchanged when only ``stage_id`` is given, planned otherwise.
          *
-         *     Swaths are a planner's output, so there is no way to write one here: the stage is named, and
-         *     the stored segments and provenance are kept as they are. Naming a stage of another mission,
-         *     or one that is not coverage, is refused.
+         *     The path is never written here; the backend plans it from the field and the machine values.
+         *     ``stage_id`` keeps the stage's identity across a re-plan, so its runs stay comparable.
          */
-        CoverageStageRef: {
+        CoverageStageInput: {
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
             kind: "coverage";
+            /** Stage Id */
+            stage_id?: string | null;
             /**
-             * Stage Id
-             * Format: uuid
+             * Field Id
+             * @description Field to cover, from list_fields.
              */
-            stage_id: string;
+            field_id?: string | null;
+            /**
+             * Operation Width M
+             * @description Working width of the mounted implement, in metres.
+             */
+            operation_width_m?: number | null;
+            /**
+             * Params Robot Id
+             * @description Robot whose factsheet supplies the turning radius and track width; omit for values entered by hand.
+             */
+            params_robot_id?: string | null;
+            /**
+             * Turning Radius M
+             * @description Minimum turning radius in metres. Required without params_robot_id; with one, it may only widen the robot's own.
+             */
+            turning_radius_m?: number | null;
+            /**
+             * Headland Width M
+             * @description Turning space kept inside the field; the radius when omitted.
+             */
+            headland_width_m?: number | null;
+            /**
+             * Swath Angle Deg
+             * @description Bearing of the swaths; the planner chooses when omitted.
+             */
+            swath_angle_deg?: number | null;
+            /**
+             * Allow Overlap
+             * @description Whether the last pass may overlap the one before it.
+             * @default false
+             */
+            allow_overlap: boolean;
+            /**
+             * On Cancel
+             * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
+             */
+            on_cancel?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
         };
         /**
          * ErrorOrigin
@@ -976,7 +1073,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Stages */
-            stages: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageRef"])[];
+            stages: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[];
         };
         /** MissionDispatchBody */
         MissionDispatchBody: {
@@ -1023,7 +1120,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Stages */
-            stages?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageRef"])[] | null;
+            stages?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
         };
         /** MissionView */
         MissionView: {
@@ -1124,7 +1221,7 @@ export interface components {
              * On Cancel
              * @description Cleanup stages executed sequentially when this stage is cancelled. Cleanup stages are themselves non-cancellable.
              */
-            on_cancel?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageRef"])[] | null;
+            on_cancel?: (components["schemas"]["NavigationStageInput"] | components["schemas"]["CoverageStageInput"])[] | null;
         };
         /**
          * PhysicalParameters
@@ -1394,12 +1491,12 @@ export interface components {
          * RunTrigger
          * @description A lifecycle transition trigger: the named cause of a status change.
          *
-         *     The ``*_REQUEST`` triggers are the operator asking; ``PAUSE``, ``RESUME``, ``ACK``,
-         *     ``COMPLETE``, ``FAIL`` and ``CANCEL`` are the robot reporting; the rest are the backend
-         *     settling a reply, a silence or a robot that came back without the run.
+         *     The ``*_REQUEST`` triggers and ``CLOSE`` are the operator acting; ``PAUSE``, ``RESUME``,
+         *     ``ACK``, ``COMPLETE``, ``FAIL`` and ``CANCEL`` are the robot reporting; the rest are the
+         *     backend settling a reply, a silence or a robot that came back without the run.
          * @enum {string}
          */
-        RunTrigger: "accept" | "reject" | "timeout" | "dispatch_unconfirmed" | "reconcile" | "pause_request" | "resume_request" | "cancel_request" | "ack" | "pause" | "resume" | "complete" | "fail" | "cancel";
+        RunTrigger: "accept" | "reject" | "timeout" | "dispatch_unconfirmed" | "reconcile" | "pause_request" | "resume_request" | "cancel_request" | "close" | "ack" | "pause" | "resume" | "complete" | "fail" | "cancel";
         /**
          * RunView
          * @description A run with the stages it was dispatched with, frozen as they stood, and any failure.
@@ -2323,6 +2420,41 @@ export interface operations {
             };
         };
     };
+    close_mission_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RunSelectBody"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     pause_mission: {
         parameters: {
             query?: never;
@@ -2380,6 +2512,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MissionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_coverage: {
+        parameters: {
+            query: {
+                /** @description Field to cover, from list_fields. */
+                field_id: string;
+                /** @description Working width of the mounted implement, in metres. */
+                operation_width_m: number;
+                /** @description Robot whose factsheet supplies the turning radius and track width; omit for values entered by hand. */
+                params_robot_id?: string | null;
+                /** @description Minimum turning radius in metres. Required without params_robot_id; with one, it may only widen the robot's own. */
+                turning_radius_m?: number | null;
+                /** @description Turning space kept inside the field; the radius when omitted. */
+                headland_width_m?: number | null;
+                /** @description Bearing of the swaths; the planner chooses when omitted. */
+                swath_angle_deg?: number | null;
+                /** @description Whether the last pass may overlap the one before it. */
+                allow_overlap?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverageStage"];
                 };
             };
             /** @description Validation Error */

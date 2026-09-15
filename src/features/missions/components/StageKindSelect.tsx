@@ -1,31 +1,39 @@
 import { ChevronDown } from "lucide-react";
-import { KIND_LABEL, type StageKind } from "./stageTypes";
+import { KIND_DESCRIPTION, type StageKind } from "./stageTypes";
 
-// All kinds the user can pick from. Today: just "navigation". Add a kind to
-// this array (and to `StageKind` in stageTypes.ts) when the backend ships
-// another one.
-const ALL_KINDS: StageKind[] = ["navigation"];
+const ALL_KINDS: StageKind[] = ["navigation", "coverage"];
 
 interface StageKindSelectProps {
-  value: StageKind;
+  value: StageKind | "";
   onChange: (k: StageKind) => void;
+  autoFocus?: boolean;
 }
 
-export function StageKindSelect({ value, onChange }: StageKindSelectProps) {
+export function StageKindSelect({
+  value,
+  onChange,
+  autoFocus,
+}: StageKindSelectProps) {
   return (
     <div className="relative inline-flex items-center">
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value as StageKind)}
-        className="appearance-none text-ui-xs font-medium uppercase tracking-wider pl-2 pr-6 py-0.5 rounded bg-[#F1F5F9] text-t2 border border-transparent hover:border-border focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+        autoFocus={autoFocus}
+        onChange={(e) => {
+          if (e.target.value) onChange(e.target.value as StageKind);
+        }}
+        className="appearance-none text-ui-sm pl-2.5 pr-7 py-1 rounded-md bg-white text-t1 border border-border hover:border-t3 focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
       >
+        <option value="" disabled>
+          Choose a stage kind…
+        </option>
         {ALL_KINDS.map((k) => (
           <option key={k} value={k}>
-            {KIND_LABEL[k]}
+            {KIND_DESCRIPTION[k]}
           </option>
         ))}
       </select>
-      <ChevronDown className="w-3 h-3 absolute right-1 top-1/2 -translate-y-1/2 text-t3 pointer-events-none" />
+      <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-t3 pointer-events-none" />
     </div>
   );
 }

@@ -20,6 +20,9 @@ type Props = {
   now: number;
   onCancel?: () => void;
   onSendAgain?: () => void;
+  /** Ends the run on the operator's word; offered only while the robot is offline. */
+  onClose?: () => void;
+  closeArmed?: boolean;
 };
 
 const VERB: Record<string, string> = {
@@ -36,6 +39,8 @@ export function RunStatusLine({
   now,
   onCancel,
   onSendAgain,
+  onClose,
+  closeArmed = false,
 }: Props) {
   const robotName = run.robot_id;
   const report = run.last_report;
@@ -77,7 +82,12 @@ export function RunStatusLine({
       ? `${robotName} last reported ${report.exec_status.toLowerCase()} ${relativeTime(report.received_at)}`
       : `${robotName} has not reported yet`;
     text = `${VERB[run.status]}… asked ${last ? relativeTime(last.at) : "just now"}; ${reported}`;
-    if (last?.acknowledged === false) {
+    const deferred = last?.detail?.deferred as string | undefined;
+    if (deferred) {
+      // The fleet knew the robot could not answer; the request waits for its reconnect.
+      tone = "warning";
+      text = `${VERB[run.status]}… ${robotName} is offline; the request is delivered when it reconnects`;
+    } else if (last?.acknowledged === false) {
       tone = "alert";
       const reason = last.detail?.reason as string | undefined;
       text = reason
@@ -116,6 +126,21 @@ export function RunStatusLine({
           className="text-ui-xs border border-current rounded px-2 py-0.5 hover:bg-black/5 transition-colors"
         >
           {action.label}
+        </button>
+      )}
+      {onClose && robot && !robot.online && (
+        <button
+          type="button"
+          onClick={onClose}
+          title="Ends the run now, without the robot. If the robot comes back still holding it, it is told to stop."
+          className={cn(
+            "text-ui-xs rounded px-2 py-0.5 transition-colors",
+            closeArmed
+              ? "text-white bg-red-500 border border-red-500 hover:bg-red-600"
+              : "text-red-500 border border-red-200 hover:bg-red-50 hover:border-red-300",
+          )}
+        >
+          {closeArmed ? "Confirm close?" : "Close now"}
         </button>
       )}
     </div>

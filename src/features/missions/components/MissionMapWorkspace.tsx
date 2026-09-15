@@ -9,7 +9,13 @@ import {
   baseLayers,
 } from "@/components/map/BasemapControl.constants";
 import { anchorFromSite, localToLatLon } from "../siteFrame";
-import type { Site } from "@/api/client";
+import {
+  coverageBounds,
+  coverageLines,
+  mainlandFeatures,
+  mainlandLayer,
+} from "./coverageLayers";
+import type { CoverageStage, Site } from "@/api/client";
 import type { StageDraft } from "./StageRow";
 
 interface MissionMapWorkspaceProps {
@@ -33,6 +39,7 @@ function resolveWaypoints(
   const out: ResolvedWaypoint[] = [];
   for (let si = 0; si < stages.length; si++) {
     const stage = stages[si];
+    if (stage.kind !== "navigation") continue;
     for (let wi = 0; wi < stage.waypoints.length; wi++) {
       const w = stage.waypoints[wi];
       let coord: [number, number] | null = null;
@@ -69,9 +76,32 @@ const SOURCES: Record<string, maplibregl.SourceSpecification> = {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
   },
+  "mn-mainland": {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  },
+  "mn-coverage": {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  },
 };
 
 const OVERLAY_LAYERS: maplibregl.LayerSpecification[] = [
+  mainlandLayer("mn-mainland-outline", "mn-mainland"),
+  {
+    id: "mn-coverage-casing",
+    type: "line",
+    source: "mn-coverage",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#fff", "line-width": 5, "line-opacity": 0.5 },
+  },
+  {
+    id: "mn-coverage-line",
+    type: "line",
+    source: "mn-coverage",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#16A34A", "line-width": 2 },
+  },
   {
     id: "mn-paths-other",
     type: "line",
@@ -126,6 +156,8 @@ export function MissionMapWorkspace({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const clickHandlerRef = useRef(onMapClick);
+  // Plans already shown, by stage id; a plan the operator has not seen yet brings the map to it.
+  const shownPlansRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     clickHandlerRef.current = onMapClick;
@@ -161,39 +193,83 @@ export function MissionMapWorkspace({
     if (!m) return;
     m.getCanvas().style.cursor = addingIndex !== null ? "crosshair" : "";
 
-    const resolved = resolveWaypoints(stages, sites);
-    const pointFeatures = resolved.map((r) => ({
-      type: "Feature" as const,
-      geometry: { type: "Point" as const, coordinates: r.lngLat },
-      properties: {
-        focused: r.stageIndex === addingIndex,
-        stageIndex: r.stageIndex,
-      },
-    }));
+    // False until the style has been parsed and the sources exist; the stages loaded from a
+    // mission usually arrive before that, and would otherwise stay undrawn until the next edit.
+    const apply = () => {
+      const source = (id: string) =>
+        m.getSource(id) as maplibregl.GeoJSONSource | undefined;
+      const wpSource = source("mn-waypoints");
+      const pathSource = source("mn-paths");
+      const coverageSource = source("mn-coverage");
+      const mainlandSource = source("mn-mainland");
+      if (!wpSource || !pathSource || !coverageSource || !mainlandSource) {
+        return false;
+      }
 
-    // Group by stage for paths.
-    const byStage = new Map<number, [number, number][]>();
-    for (const r of resolved) {
-      if (!byStage.has(r.stageIndex)) byStage.set(r.stageIndex, []);
-      byStage.get(r.stageIndex)!.push(r.lngLat);
-    }
-    const lineFeatures = Array.from(byStage.entries())
-      .filter(([, coords]) => coords.length >= 2)
-      .map(([si, coords]) => ({
-        type: "Feature" as const,
-        geometry: { type: "LineString" as const, coordinates: coords },
-        properties: { focused: si === addingIndex, stageIndex: si },
-      }));
+      const resolved = resolveWaypoints(stages, sites);
+      wpSource.setData({
+        type: "FeatureCollection",
+        features: resolved.map((r) => ({
+          type: "Feature" as const,
+          geometry: { type: "Point" as const, coordinates: r.lngLat },
+          properties: {
+            focused: r.stageIndex === addingIndex,
+            stageIndex: r.stageIndex,
+          },
+        })),
+      });
 
-    const wpSource = m.getSource("mn-waypoints") as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    wpSource?.setData({ type: "FeatureCollection", features: pointFeatures });
+      const byStage = new Map<number, [number, number][]>();
+      for (const r of resolved) {
+        if (!byStage.has(r.stageIndex)) byStage.set(r.stageIndex, []);
+        byStage.get(r.stageIndex)!.push(r.lngLat);
+      }
+      pathSource.setData({
+        type: "FeatureCollection",
+        features: Array.from(byStage.entries())
+          .filter(([, coords]) => coords.length >= 2)
+          .map(([si, coords]) => ({
+            type: "Feature" as const,
+            geometry: { type: "LineString" as const, coordinates: coords },
+            properties: { focused: si === addingIndex, stageIndex: si },
+          })),
+      });
 
-    const pathSource = m.getSource("mn-paths") as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    pathSource?.setData({ type: "FeatureCollection", features: lineFeatures });
+      const planned: CoverageStage[] = stages.flatMap((s) =>
+        s.kind === "coverage" && s.planned ? [s.planned] : [],
+      );
+      const lines = coverageLines(planned);
+      coverageSource.setData({
+        type: "FeatureCollection",
+        features: lines
+          .filter((line) => line.length >= 2)
+          .map((line) => ({
+            type: "Feature" as const,
+            geometry: { type: "LineString" as const, coordinates: line },
+            properties: {},
+          })),
+      });
+      mainlandSource.setData(mainlandFeatures(planned));
+
+      const freshLines = lines.filter(
+        (_line, i) => !shownPlansRef.current.has(planned[i].stage_id),
+      );
+      if (freshLines.length > 0) {
+        const b = coverageBounds(freshLines);
+        if (b) m.fitBounds(b, { padding: 40, duration: 300, maxZoom: 19 });
+        for (const p of planned) shownPlansRef.current.add(p.stage_id);
+      }
+      return true;
+    };
+
+    if (apply()) return;
+    const onStyleData = () => {
+      if (apply()) m.off("styledata", onStyleData);
+    };
+    m.on("styledata", onStyleData);
+    return () => {
+      m.off("styledata", onStyleData);
+    };
   }, [stages, sites, addingIndex]);
 
   return (

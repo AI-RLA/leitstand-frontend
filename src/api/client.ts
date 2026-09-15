@@ -1,4 +1,4 @@
-import type { components } from "./generated";
+import type { components, operations } from "./generated";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
@@ -36,6 +36,14 @@ export function apiErrorMessage(error: unknown): string {
   }
   if (error instanceof Error) return error.message;
   return "Something went wrong.";
+}
+
+function queryString(params: object): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) search.set(key, String(value));
+  }
+  return search.toString();
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -77,6 +85,14 @@ export type StageStatus = components["schemas"]["StageStatus"];
 export type MissionError = components["schemas"]["MissionError"];
 export type NavigationStageInput =
   components["schemas"]["NavigationStageInput"];
+export type CoverageStageInput = components["schemas"]["CoverageStageInput"];
+export type StageInput = NavigationStageInput | CoverageStageInput;
+export type Stage = Mission["stages"][number];
+export type CoverageStage = components["schemas"]["CoverageStage"];
+// The preview query and a coverage stage input share their field names on purpose: what the
+// operator previewed is stored by sending the same values again.
+export type CoveragePreviewQuery =
+  operations["preview_coverage"]["parameters"]["query"];
 export type SiteLocalWaypoint = components["schemas"]["SiteLocalWaypoint"];
 export type Site = components["schemas"]["SiteView"];
 export type SiteCreate = components["schemas"]["SiteCreate"];
@@ -159,6 +175,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ run_id: runId, mode }),
     }),
+  // Ends a run whose robot is offline on the operator's word; refused while the robot is online.
+  closeMissionRun: (id: string, runId: string | null = null) =>
+    request<Mission>(`/missions/${encodeURIComponent(id)}/close`, {
+      method: "POST",
+      body: JSON.stringify({ run_id: runId }),
+    }),
   pauseMission: (id: string, runId: string | null = null) =>
     request<Mission>(`/missions/${encodeURIComponent(id)}/pause`, {
       method: "POST",
@@ -169,6 +191,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ run_id: runId }),
     }),
+
+  previewCoverage: (q: CoveragePreviewQuery) =>
+    request<CoverageStage>(`/coverage/preview?${queryString(q)}`),
 
   listSites: () => request<Site[]>("/sites/"),
   getSite: (id: string) => request<Site>(`/sites/${encodeURIComponent(id)}`),

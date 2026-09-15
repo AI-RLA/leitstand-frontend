@@ -2,6 +2,7 @@ import type {
   CoverageProvenance,
   Mission,
   MissionError,
+  Robot,
   Run,
   RunState,
   RunSummary,
@@ -80,6 +81,7 @@ export interface StageViewModel {
   waypointCount: number;
   // Absent on a stage that is not coverage, where swaths mean nothing.
   swathCount: number | null;
+  coverage: CoverageProvenance | null;
   distanceM: number | null;
   // Widen to string (the schema literal is "navigation" today) so the timeline
   // can label future non-navigation kinds without a type change here.
@@ -120,7 +122,7 @@ export interface MissionViewModel {
 
 type Waypoint = ReturnType<typeof stageWaypoints>[number];
 
-function stageDistance(waypoints: Waypoint[]): number | null {
+export function stageDistance(waypoints: Waypoint[]): number | null {
   if (waypoints.length < 2) return 0;
   let sum = 0;
   for (let i = 1; i < waypoints.length; i++) {
@@ -137,7 +139,7 @@ function stageDistance(waypoints: Waypoint[]): number | null {
   return sum;
 }
 
-function stageFrame(
+export function stageFrame(
   waypoints: Waypoint[],
 ): "wgs84" | "site_local" | "mixed" | null {
   let hasWgs = false;
@@ -154,21 +156,16 @@ function stageFrame(
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
-export function toMissionViewModel(
-  m: Mission,
+/** The per-stage view of a stage list, joined with a run's per-stage state when there is one. */
+export function stageViewModels(
+  spine: Mission["stages"],
   state: RunState | null,
-  run: Run | null = null,
-): MissionViewModel {
-  // Join the backend's per-stage runtime entries onto the stage spine by stage_id. The spine
-  // is the run's frozen plan when a run is given, so editing the mission afterwards never
-  // redraws what a finished run did; the definition serves only a mission that has no run.
-  const spine = run?.stages ?? m.stages;
+): StageViewModel[] {
   const runtimeByStageId = new Map<string, StageStateView>();
   for (const ss of state?.stage_states ?? []) {
     runtimeByStageId.set(ss.stage_id, ss);
   }
-
-  const stages: StageViewModel[] = spine.map((s, i) => {
+  return spine.map((s, i) => {
     // The backend resolves and serves per-stage status (incl. CANCELLED/SKIPPED);
     // render it directly. A stage with no served entry defaults to WAITING.
     const runtime = runtimeByStageId.get(s.stage_id) ?? null;
@@ -181,6 +178,7 @@ export function toMissionViewModel(
         s.kind === "coverage"
           ? s.segments.filter((seg) => seg.kind === "swath").length
           : null,
+      coverage: s.kind === "coverage" ? s.provenance : null,
       distanceM: stageDistance(stageDrivenWaypoints(s)),
       kind: s.kind,
       frame: stageFrame(waypoints),
@@ -192,7 +190,14 @@ export function toMissionViewModel(
       waypoints,
     };
   });
+}
 
+/** Where a run stands across its stages: the active stage and the share of the whole done. */
+export function runProgress(stages: StageViewModel[]): {
+  currentStageIndex: number | null;
+  finishedStageCount: number;
+  overallProgress: number | null;
+} {
   const activeIdx = stages.findIndex(
     (s) =>
       s.status === "RUNNING" ||
@@ -203,7 +208,6 @@ export function toMissionViewModel(
   const finishedStageCount = stages.filter(
     (s) => s.status === "FINISHED",
   ).length;
-
   let overallProgress: number | null = null;
   if (currentStageIndex !== null && stages.length > 0) {
     const cur = clamp01(stages[currentStageIndex].progress ?? 0);
@@ -211,10 +215,24 @@ export function toMissionViewModel(
   } else if (stages.length > 0 && finishedStageCount === stages.length) {
     overallProgress = 1;
   }
+  return { currentStageIndex, finishedStageCount, overallProgress };
+}
+
+export function toMissionViewModel(
+  m: Mission,
+  state: RunState | null,
+  run: Run | null = null,
+  now: number = Date.now(),
+): MissionViewModel {
+  // The spine is the run's frozen plan when a run is given, so editing the mission afterwards
+  // never redraws what a finished run did; the definition serves only a mission without a run.
+  const stages = stageViewModels(run?.stages ?? m.stages, state);
+  const { currentStageIndex, finishedStageCount, overallProgress } =
+    runProgress(stages);
 
   const latest = m.latest_run ?? null;
   const elapsedMs = latest?.dispatched_at
-    ? (latest.ended_at ? new Date(latest.ended_at).getTime() : Date.now()) -
+    ? (latest.ended_at ? new Date(latest.ended_at).getTime() : now) -
       new Date(latest.dispatched_at).getTime()
     : null;
 
@@ -250,12 +268,30 @@ export function liveFor(
   return runId ? (states.get(runId) ?? null) : null;
 }
 
-/** The provenance of a mission's first planned path, or null when it has none. */
-export function coverageOf(
-  stages: Mission["stages"] | undefined,
-): CoverageProvenance | null {
-  for (const stage of stages ?? []) {
-    if (stage.kind === "coverage") return stage.provenance;
+/**
+ * Why a robot cannot run this mission now, or null when it can. Checked here for the greyed
+ * choices only; the backend decides for real on dispatch.
+ */
+export function dispatchRefusal(mission: Mission, robot: Robot): string | null {
+  if (!robot.online) return "offline";
+  if (robot.current_run) return "busy with another run";
+  const factsheet = robot.factsheet;
+  if (!factsheet) return "no factsheet";
+  const needed = coverageTurningRadius(mission);
+  if (needed !== null) {
+    if (!factsheet.coverage) return "cannot drive coverage";
+    const radius = factsheet.physical_parameters?.min_turning_radius_m;
+    if (radius != null && radius > needed + 1e-9) {
+      return `turns at ${radius} m, wider than the plan's ${needed} m`;
+    }
   }
   return null;
+}
+
+/** The tightest turning radius any coverage stage was planned for, or null without one. */
+export function coverageTurningRadius(mission: Mission): number | null {
+  const radii = mission.stages.flatMap((s) =>
+    s.kind === "coverage" ? [s.provenance.params.turning_radius_m] : [],
+  );
+  return radii.length ? Math.min(...radii) : null;
 }

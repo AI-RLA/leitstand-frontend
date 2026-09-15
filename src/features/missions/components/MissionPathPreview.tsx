@@ -8,21 +8,29 @@ import {
 } from "@/components/map/BasemapControl.constants";
 import { BasemapControl } from "@/components/map/BasemapControl";
 import { useFleet } from "@/stores/fleet";
-import { fieldBbox, toFieldGeoJSON } from "@/components/map/fieldUtils";
+import {
+  bboxOfPoints,
+  fieldBbox,
+  toFieldGeoJSON,
+} from "@/components/map/fieldUtils";
 import { anchorFromSite, localToLatLon, type SiteAnchor } from "../siteFrame";
-import { coverageOf } from "../adapters";
+import { mainlandFeatures, mainlandLayer } from "./coverageLayers";
 import { stageDrivenWaypoints, stageWaypoints } from "../stageWaypoints";
 import type {
+  CoverageStage,
   Field,
-  Mission,
   RunState,
   Site,
+  Stage,
   StageStateView,
   RunSiteAnchor,
 } from "@/api/client";
 
 interface MissionPathPreviewProps {
-  mission: Mission;
+  /** The definition's stages, or a run's frozen ones. */
+  stages: Stage[];
+  /** Changes re-arm the one-time fit, so a new mission or run gets its own viewport. */
+  fitKey: string;
   state: RunState | null;
   sites: Site[];
   /**
@@ -30,8 +38,10 @@ interface MissionPathPreviewProps {
    * finished run is not redrawn when a site moves and still draws after one is deleted.
    */
   siteAnchors?: Record<string, RunSiteAnchor> | null;
-  /** Boundary this mission was planned over, drawn under the path so the two can be compared. */
-  field?: Field | null;
+  /** Boundaries the coverage stages were planned over, drawn under the path for comparison. */
+  fields?: Field[];
+  /** The robot whose live pose to draw; null draws none. */
+  robotId?: string | null;
 }
 
 interface StagePath {
@@ -123,7 +133,7 @@ function toCoords(
 }
 
 function resolveStagePaths(
-  stages: Mission["stages"],
+  stages: Stage[],
   liveStates: StageStateView[] | undefined,
   sites: Site[],
   frozen?: Record<string, RunSiteAnchor> | null,
@@ -174,36 +184,15 @@ function endpointKeys(paths: StagePath[]): {
 
 function boundsOf(
   paths: StagePath[],
-  field: Field | null | undefined,
+  fields: Field[],
 ): maplibregl.LngLatBoundsLike | null {
-  let minLon = Infinity;
-  let maxLon = -Infinity;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-  let count = 0;
-  const include = (lon: number, lat: number) => {
-    if (lon < minLon) minLon = lon;
-    if (lon > maxLon) maxLon = lon;
-    if (lat < minLat) minLat = lat;
-    if (lat > maxLat) maxLat = lat;
-    count++;
-  };
-  for (const p of paths) {
-    for (const [lon, lat] of p.line) include(lon, lat);
-  }
   // Framing both together is what makes a misplaced path visible: a path drawn far from the field
   // it claims to cover zooms the view out until the gap is the obvious thing on screen, where
   // fitting the path alone would show a plausible-looking route and no field at all.
-  if (field) {
-    const [[fMinLon, fMinLat], [fMaxLon, fMaxLat]] = fieldBbox(field.geometry);
-    include(fMinLon, fMinLat);
-    include(fMaxLon, fMaxLat);
-  }
-  if (count === 0) return null;
-  return [
-    [minLon, minLat],
-    [maxLon, maxLat],
-  ];
+  return bboxOfPoints([
+    ...paths.flatMap((p) => p.line),
+    ...fields.flatMap((f) => fieldBbox(f.geometry)),
+  ]);
 }
 
 // Listed before the path layers so the boundary renders beneath them.
@@ -220,20 +209,7 @@ const FIELD_LAYERS: maplibregl.LayerSpecification[] = [
     source: "mp-field",
     paint: { "line-color": "#16A34A", "line-width": 1.5, "line-opacity": 0.6 },
   },
-  // Where the headland begins, and so where the swaths had to stop. Solid, uncased and in the
-  // field's own green: dashes and a casing are how this map draws a driven path, and the mainland
-  // is not driven, it is part of the field. Read together with the outline it sits inside, the two
-  // lines make the headland legible as the margin it is.
-  {
-    id: "mp-mainland-outline",
-    type: "line",
-    source: "mp-mainland",
-    paint: {
-      "line-color": "#16A34A",
-      "line-width": 1.25,
-      "line-opacity": 0.55,
-    },
-  },
+  mainlandLayer("mp-mainland-outline", "mp-mainland"),
 ];
 
 const PATH_LAYERS: maplibregl.LayerSpecification[] = [
@@ -415,37 +391,34 @@ const SOURCES: Record<string, maplibregl.SourceSpecification> = {
 };
 
 export function MissionPathPreview({
-  mission,
+  stages,
+  fitKey,
   state,
   sites,
   siteAnchors,
-  field,
+  fields = [],
+  robotId = null,
 }: MissionPathPreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const fittedRef = useRef(false);
 
-  // The mainland: the field less its headland, as the planner cut it. Comes with the mission
-  // rather than from the field, because the field can be edited after a plan is made.
-  const mainland = coverageOf(mission.stages)?.mainland_boundary ?? null;
+  // The mainland comes with the stage rather than from the field, because the field can be
+  // edited after a plan is made.
+  const coverage = useMemo(
+    () => stages.filter((s): s is CoverageStage => s.kind === "coverage"),
+    [stages],
+  );
 
-  // Live robot pose from the fleet WS stream (null when no robot is running or assigned,
-  // the robot is offline, or its first pose has not arrived yet). The run's robot wins over
-  // the default: a run need not be on the mission's default robot.
-  const robotId = mission.latest_run?.robot_id ?? mission.assigned_robot_id;
+  // Live robot pose from the fleet WS stream (null when no robot is given, the robot is
+  // offline, or its first pose has not arrived yet).
   const robotPose = useFleet((s) =>
     robotId ? (s.robots[robotId]?.pose ?? null) : null,
   );
 
   const paths = useMemo(
-    () =>
-      resolveStagePaths(
-        mission.stages,
-        state?.stage_states,
-        sites,
-        siteAnchors,
-      ),
-    [mission, state, sites, siteAnchors],
+    () => resolveStagePaths(stages, state?.stage_states, sites, siteAnchors),
+    [stages, state, sites, siteAnchors],
   );
 
   // One-time map init.
@@ -478,7 +451,7 @@ export function MissionPathPreview({
   // mission inherits the previous one's viewport.
   useEffect(() => {
     fittedRef.current = false;
-  }, [mission.mission_id]);
+  }, [fitKey]);
 
   // Data updates + initial fit-bounds.
   useEffect(() => {
@@ -501,7 +474,9 @@ export function MissionPathPreview({
       const pointSource = m.getSource("mp-waypoints") as
         | maplibregl.GeoJSONSource
         | undefined;
-      if (!fieldSource || !pathSource || !pointSource) return false;
+      if (!fieldSource || !mainlandSource || !pathSource || !pointSource) {
+        return false;
+      }
 
       const lineFeatures = paths
         .filter((p) => p.line.length >= 2)
@@ -532,24 +507,8 @@ export function MissionPathPreview({
         }),
       );
 
-      fieldSource.setData(toFieldGeoJSON(field ? [field] : []));
-      mainlandSource?.setData({
-        type: "FeatureCollection",
-        features: mainland
-          ? [
-              {
-                type: "Feature",
-                // Rebuilt rather than passed through: the generated type allows a null bbox,
-                // which the GeoJSON types this map is written against do not.
-                geometry: {
-                  type: "Polygon",
-                  coordinates: mainland.coordinates as GeoJSON.Position[][],
-                },
-                properties: {},
-              },
-            ]
-          : [],
-      });
+      fieldSource.setData(toFieldGeoJSON(fields));
+      mainlandSource.setData(mainlandFeatures(coverage));
       pathSource.setData({ type: "FeatureCollection", features: lineFeatures });
       pointSource.setData({
         type: "FeatureCollection",
@@ -562,7 +521,7 @@ export function MissionPathPreview({
       // view. Past that the raster source upscales its own tiles, which is soft but legible, and
       // the orthophoto layer is a WMS with no tile ceiling at all.
       if (!fittedRef.current) {
-        const b = boundsOf(paths, field);
+        const b = boundsOf(paths, fields);
         if (b) {
           m.fitBounds(b, { padding: 30, duration: 0, maxZoom: 20 });
           fittedRef.current = true;
@@ -581,7 +540,7 @@ export function MissionPathPreview({
     return () => {
       m.off("styledata", onStyleData);
     };
-  }, [paths, field, mainland]);
+  }, [paths, fields, coverage]);
 
   // HTML rather than a symbol layer: the style carries no glyph source, so text would not draw.
   // Bound once, since the label belongs to the map rather than to any one data frame.

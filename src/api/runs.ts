@@ -51,10 +51,15 @@ export function useDeleteRun(runId: string, missionId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api.deleteRun(runId),
+    // The run's own query is left to the caller to drop after it has navigated away; dropping it
+    // here would make a still-mounted run page refetch a deleted run.
     onSuccess: () => {
-      qc.removeQueries({ queryKey: runKey(missionId, runId) });
       void qc.invalidateQueries({ queryKey: missionRunsKey(missionId) });
-      void qc.invalidateQueries({ queryKey: ["missions"] });
+      void qc.invalidateQueries({
+        queryKey: ["missions", missionId],
+        exact: true,
+      });
+      void qc.invalidateQueries({ queryKey: ["missions"], exact: true });
     },
   });
 }
