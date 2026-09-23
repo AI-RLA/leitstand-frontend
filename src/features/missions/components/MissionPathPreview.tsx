@@ -518,8 +518,7 @@ export function MissionPathPreview({
       // Fit bounds once after first data load, before any user interaction. The ceiling binds
       // only on fields small enough to fit inside it, and a field of a few hundred square metres
       // is one: capped at the last zoom OSM publishes, it lands as a stamp in the middle of the
-      // view. Past that the raster source upscales its own tiles, which is soft but legible, and
-      // the orthophoto layer is a WMS with no tile ceiling at all.
+      // view. Past that both basemaps scale up their z19 tiles, which is soft but legible.
       if (!fittedRef.current) {
         const b = boundsOf(paths, fields);
         if (b) {
