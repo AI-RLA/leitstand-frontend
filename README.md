@@ -60,6 +60,7 @@ See `.env.example`.
 | `VITE_API_BASE_URL` | `/api/v1` (Vite proxy) | Backend REST base URL |
 | `VITE_WS_URL`       | `/ws/v1` (Vite proxy)  | Backend WS URL        |
 | `VITE_MAP_TILE_URL` | OSM                    | Map tile XYZ template |
+| `VITE_MAP_DOP_URL`  | LGLN DOP20 WMS         | Aerial tile template  |
 
 For production traffic, point `VITE_MAP_TILE_URL` at a paid or self-hosted tile service. The OSM Tile Usage Policy prohibits heavy production use of their public free tile servers.
 
@@ -73,6 +74,10 @@ For production traffic, point `VITE_MAP_TILE_URL` at a paid or self-hosted tile 
 | `LEITSTAND_SECRETS_DIR` | `../leitstand-backend/secrets` | Where the backend's bearer token file lives                                       |
 
 ## Production Deploy
+
+The Leitstand is a research prototype. The connection between the backend and the robots is
+neither authenticated nor encrypted, and the operator interface has no user accounts. Run all
+components on a private network or behind a VPN.
 
 Builds the Vite bundle and serves it via nginx, reverse-proxying `/api/` and `/ws/` to the backend.
 The stack joins the `leitstand` network the backend's compose stack creates, so start that first:
