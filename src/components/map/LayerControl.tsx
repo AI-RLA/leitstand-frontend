@@ -69,6 +69,7 @@ export function LayerControl({ map: legacyMap }: Props) {
       )}
       <div className="absolute top-2 right-2 z-20">
         <button
+          type="button"
           onClick={() => setOpen((o) => !o)}
           disabled={!map}
           title="Layers"
@@ -86,6 +87,7 @@ export function LayerControl({ map: legacyMap }: Props) {
               const available = covers(e);
               return (
                 <button
+                  type="button"
                   key={e.id}
                   onClick={() => {
                     selectBasemap(e);
