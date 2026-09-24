@@ -4,6 +4,9 @@ import { api, type Field, type FieldCreate, type FieldUpdate } from "./client";
 export const FIELDS_KEY = ["fields"] as const;
 export const fieldKey = (id: string) => ["fields", id] as const;
 
+// A shared empty list, so consumers do not see a new array identity on every render while loading.
+export const NO_FIELDS: Field[] = [];
+
 export function useFields() {
   return useQuery({ queryKey: FIELDS_KEY, queryFn: api.listFields });
 }
