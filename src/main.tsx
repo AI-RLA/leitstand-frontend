@@ -21,6 +21,7 @@ import { MissionNew } from "./features/missions/MissionNew";
 import { SitesLayout } from "./features/sites/SitesLayout";
 import { SiteDetail } from "./features/sites/SiteDetail";
 import { SiteNew } from "./features/sites/SiteNew";
+import { mapConfigReady } from "./config/mapConfig";
 import "./index.css";
 
 const rootRoute = createRootRoute({ component: RootLayout });
@@ -200,6 +201,9 @@ declare module "@tanstack/react-router" {
     router: typeof router;
   }
 }
+
+// Maps build their basemap layers synchronously at mount, so the map config must be loaded first.
+await mapConfigReady;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

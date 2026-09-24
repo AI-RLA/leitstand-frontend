@@ -1,13 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useNavigate } from "@tanstack/react-router";
 import { useFields } from "@/api/fields";
 import type { Field } from "@/api/client";
-import { loadMapView, saveMapView, loadBasemap } from "@/stores/mapView";
-import { BasemapControl } from "@/components/map/BasemapControl";
+import { loadMapView, saveMapView } from "@/stores/mapView";
+import { LayerControl } from "@/components/map/LayerControl";
 import {
-  MAP_SOURCES,
+  mapSources,
   baseLayers,
 } from "@/components/map/BasemapControl.constants";
 import { fieldBbox, toFieldGeoJSON } from "@/components/map/fieldUtils";
@@ -17,6 +17,7 @@ type Props = { selectedFieldId: string | null };
 export function FieldsMap({ selectedFieldId }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
   const fieldsRef = useRef<Field[]>([]);
   const selectedFieldIdRef = useRef<string | null>(selectedFieldId);
   const prevSelectedRef = useRef<string | null>(null);
@@ -75,23 +76,21 @@ export function FieldsMap({ selectedFieldId }: Props) {
       style: {
         version: 8,
         sources: {
-          ...MAP_SOURCES,
+          ...mapSources(),
           fields: {
             type: "geojson",
             data: toFieldGeoJSON(fieldsRef.current),
             promoteId: "id",
           },
         },
-        layers: [...baseLayers(loadBasemap()), ...fieldLayers],
+        layers: [...baseLayers(), ...fieldLayers],
       },
       ...loadMapView(),
       attributionControl: false,
     });
     map.addControl(new maplibregl.NavigationControl(), "bottom-right");
-    map.addControl(
-      new maplibregl.AttributionControl({ compact: true }),
-      "bottom-left",
-    );
+    map.addControl(new maplibregl.AttributionControl(), "bottom-left");
+    map.once("style.load", () => setLoadedMap(map));
     map.on("moveend", () => {
       const c = map.getCenter();
       saveMapView([c.lng, c.lat], map.getZoom());
@@ -132,6 +131,7 @@ export function FieldsMap({ selectedFieldId }: Props) {
     return () => {
       map.remove();
       mapRef.current = null;
+      setLoadedMap(null);
     };
   }, [navigate]);
 
@@ -192,7 +192,7 @@ export function FieldsMap({ selectedFieldId }: Props) {
   return (
     <div className="absolute inset-0">
       <div ref={ref} className="absolute inset-0" />
-      <BasemapControl mapRef={mapRef} />
+      <LayerControl map={loadedMap} />
     </div>
   );
 }

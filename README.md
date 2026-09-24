@@ -59,10 +59,13 @@ See `.env.example`.
 | ------------------- | ---------------------- | --------------------- |
 | `VITE_API_BASE_URL` | `/api/v1` (Vite proxy) | Backend REST base URL |
 | `VITE_WS_URL`       | `/ws/v1` (Vite proxy)  | Backend WS URL        |
-| `VITE_MAP_TILE_URL` | OSM                    | Map tile XYZ template |
-| `VITE_MAP_DOP_URL`  | LGLN DOP20 WMS         | Aerial tile template  |
 
-For production traffic, point `VITE_MAP_TILE_URL` at a paid or self-hosted tile service. The OSM Tile Usage Policy prohibits heavy production use of their public free tile servers.
+The basemaps are not a build setting. They come from `public/config/map.json` at runtime. A
+deployment replaces them by mounting its own folder with a `map.json` over
+`/usr/share/nginx/html/config` (see the commented `volumes:` in `docker-compose.yaml`), and the dev
+server serves the file named by the shell variable `LEITSTAND_MAP_CONFIG_FILE` instead. The OSM
+Tile Usage Policy prohibits heavy production use of the public OSM tile servers, so a larger
+deployment points the file at its own tile service.
 
 **Production container** (`docker-compose.yaml` here; read by `docker compose` and nginx, not Vite):
 

@@ -13,10 +13,9 @@ import {
 } from "./fieldDrawUtils";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { loadBasemap } from "@/stores/mapView";
-import { BasemapControl } from "@/components/map/BasemapControl";
+import { LayerControl } from "@/components/map/LayerControl";
 import {
-  MAP_SOURCES,
+  mapSources,
   baseLayers,
 } from "@/components/map/BasemapControl.constants";
 
@@ -26,6 +25,7 @@ export function FieldDraw() {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
   // Refs to avoid stale closures in the map click handler
   const vertsRef = useRef<[number, number][]>([]);
   const stageRef = useRef<Stage>("drawing");
@@ -51,8 +51,8 @@ export function FieldDraw() {
       container: containerRef.current,
       style: {
         version: 8,
-        sources: { ...MAP_SOURCES, ...DRAW_SOURCES },
-        layers: [...baseLayers(loadBasemap()), ...DRAW_LAYERS],
+        sources: { ...mapSources(), ...DRAW_SOURCES },
+        layers: [...baseLayers(), ...DRAW_LAYERS],
       },
       center: [8.020798, 52.286366],
       zoom: 14,
@@ -60,10 +60,12 @@ export function FieldDraw() {
     m.addControl(new maplibregl.NavigationControl(), "bottom-right");
     m.getCanvas().style.cursor = "crosshair";
     setupDrawInteraction(m, vertsRef, stageRef, setVerts);
+    m.once("style.load", () => setLoadedMap(m));
     mapRef.current = m;
     return () => {
       m.remove();
       mapRef.current = null;
+      setLoadedMap(null);
     };
   }, []);
 
@@ -183,7 +185,7 @@ export function FieldDraw() {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative">
           <div ref={containerRef} className="absolute inset-0" />
-          <BasemapControl mapRef={mapRef} />
+          <LayerControl map={loadedMap} />
         </div>
 
         {stage === "naming" && (

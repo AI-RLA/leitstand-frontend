@@ -1,5 +1,4 @@
 const KEY = "leitstand.mapView";
-const BASEMAP_KEY = "leitstand.basemap";
 const DEFAULT = { center: [8.020798, 52.286366] as [number, number], zoom: 17 };
 
 function isMapView(
@@ -32,24 +31,6 @@ export function loadMapView(): { center: [number, number]; zoom: number } {
 export function saveMapView(center: [number, number], zoom: number): void {
   try {
     sessionStorage.setItem(KEY, JSON.stringify({ center, zoom }));
-  } catch {
-    // sessionStorage / localStorage may be unavailable (private browsing, quota)
-  }
-}
-
-export function loadBasemap(): "osm" | "dop" {
-  try {
-    const v = localStorage.getItem(BASEMAP_KEY);
-    if (v === "osm" || v === "dop") return v;
-  } catch {
-    // sessionStorage / localStorage may be unavailable (private browsing, quota)
-  }
-  return "osm";
-}
-
-export function saveBasemap(basemap: "osm" | "dop"): void {
-  try {
-    localStorage.setItem(BASEMAP_KEY, basemap);
   } catch {
     // sessionStorage / localStorage may be unavailable (private browsing, quota)
   }

@@ -1,13 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { loadBasemap } from "@/stores/mapView";
 import { headingEndpoint } from "@/lib/geo";
 import {
-  MAP_SOURCES,
+  mapSources,
   baseLayers,
 } from "@/components/map/BasemapControl.constants";
-import { BasemapControl } from "@/components/map/BasemapControl";
+import { LayerControl } from "@/components/map/LayerControl";
 import type { SiteViewModel } from "../adapters";
 
 interface SiteMiniMapProps {
@@ -17,6 +16,7 @@ interface SiteMiniMapProps {
 export function SiteMiniMap({ vm }: SiteMiniMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -28,7 +28,7 @@ export function SiteMiniMap({ vm }: SiteMiniMapProps) {
     );
 
     const sources: Record<string, maplibregl.SourceSpecification> = {
-      ...MAP_SOURCES,
+      ...mapSources(),
       "site-anchor": {
         type: "geojson",
         data: {
@@ -69,7 +69,7 @@ export function SiteMiniMap({ vm }: SiteMiniMapProps) {
     };
 
     const layers: maplibregl.LayerSpecification[] = [
-      ...baseLayers(loadBasemap()),
+      ...baseLayers(),
       {
         id: "site-outline-fill",
         type: "fill",
@@ -106,20 +106,21 @@ export function SiteMiniMap({ vm }: SiteMiniMapProps) {
       style: { version: 8, sources, layers },
       center: [vm.anchorLon, vm.anchorLat],
       zoom: 17,
-      attributionControl: false,
     });
+    m.once("style.load", () => setLoadedMap(m));
     mapRef.current = m;
 
     return () => {
       m.remove();
       mapRef.current = null;
+      setLoadedMap(null);
     };
   }, [vm.id, vm.anchorLat, vm.anchorLon, vm.anchorHeadingDeg, vm.outline]);
 
   return (
     <div className="relative h-[320px] rounded-lg overflow-hidden border border-border mb-3">
       <div ref={containerRef} className="absolute inset-0" />
-      <BasemapControl mapRef={mapRef} />
+      <LayerControl map={loadedMap} />
     </div>
   );
 }

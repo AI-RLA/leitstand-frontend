@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { loadBasemap } from "@/stores/mapView";
 import {
-  MAP_SOURCES,
+  mapSources,
   baseLayers,
 } from "@/components/map/BasemapControl.constants";
-import { BasemapControl } from "@/components/map/BasemapControl";
+import { LayerControl } from "@/components/map/LayerControl";
 import { useFleet } from "@/stores/fleet";
 import {
   bboxOfPoints,
@@ -367,7 +366,6 @@ function createEndpointLabel(): HTMLDivElement {
 }
 
 const SOURCES: Record<string, maplibregl.SourceSpecification> = {
-  ...MAP_SOURCES,
   "mp-field": {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -401,6 +399,7 @@ export function MissionPathPreview({
 }: MissionPathPreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
   const fittedRef = useRef(false);
 
   // The mainland comes with the stage rather than from the field, because the field can be
@@ -428,21 +427,22 @@ export function MissionPathPreview({
       container: containerRef.current,
       style: {
         version: 8,
-        sources: SOURCES,
-        layers: [...baseLayers(loadBasemap()), ...FIELD_LAYERS, ...PATH_LAYERS],
+        sources: { ...mapSources(), ...SOURCES },
+        layers: [...baseLayers(), ...FIELD_LAYERS, ...PATH_LAYERS],
       },
       center: [8.020798, 52.286366],
       zoom: 15,
-      attributionControl: false,
     });
     m.addControl(
       new maplibregl.NavigationControl({ showCompass: false }),
       "bottom-right",
     );
+    m.once("style.load", () => setLoadedMap(m));
     mapRef.current = m;
     return () => {
       m.remove();
       mapRef.current = null;
+      setLoadedMap(null);
       fittedRef.current = false;
     };
   }, []);
@@ -606,7 +606,7 @@ export function MissionPathPreview({
   return (
     <div className="relative h-full w-full rounded-lg overflow-hidden border border-border">
       <div ref={containerRef} className="absolute inset-0" />
-      <BasemapControl mapRef={mapRef} />
+      <LayerControl map={loadedMap} />
     </div>
   );
 }

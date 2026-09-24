@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "basemaps": [
+    {
+      "id": "osm",
+      "role": "streets",
+      "label": "OpenStreetMap",
+      "details": "Data ODbL, tiles under the OSMF tile usage policy",
+      "source": {
+        "type": "raster",
+        "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        "tileSize": 256,
+        "maxzoom": 19,
+        "attribution": "© <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
+      }
+    },
+    {
+      "id": "ni_dop20",
+      "role": "aerial",
+      "label": "Aerial photo (Niedersachsen)",
+      "details": "LGLN DOP20, 20 cm, CC BY 4.0",
+      "source": {
+        "type": "raster",
+        "wms": {
+          "url": "https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms",
+          "layers": "ni_dop20",
+          "format": "image/jpeg"
+        },
+        "tileSize": 512,
+        "maxzoom": 18,
+        "bounds": [6.51, 51.15, 11.75, 54.15],
+        "attribution": "© <a href=\"https://www.lgln.niedersachsen.de\">LGLN</a> (2026) <a href=\"https://creativecommons.org/licenses/by/4.0/\">CC BY 4.0</a>"
+      }
+    }
+  ]
+}

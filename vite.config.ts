@@ -1,4 +1,9 @@
-import { defineConfig, type ProxyOptions } from "vite";
+import {
+  defineConfig,
+  type Connect,
+  type Plugin,
+  type ProxyOptions,
+} from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
@@ -45,8 +50,35 @@ function withBearer(target: string, ws = false): ProxyOptions {
   };
 }
 
+// Read per request so edits to the local map config show on reload without restarting the server.
+function mapConfigFile(): Plugin {
+  const file = process.env.LEITSTAND_MAP_CONFIG_FILE;
+  const serve = (server: { middlewares: Connect.Server }) => {
+    if (!file) return;
+    const resolved = path.resolve(process.cwd(), file);
+    console.info(`[map config] serving ${resolved} at /config/map.json`);
+    server.middlewares.use("/config/map.json", (_req, res) => {
+      try {
+        const body = fs.readFileSync(resolved, "utf8");
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-cache");
+        res.end(body);
+      } catch (err) {
+        res.statusCode = 500;
+        res.end(`cannot read ${resolved}: ${String(err)}`);
+      }
+    });
+  };
+  return {
+    name: "leitstand-map-config-file",
+    configureServer: serve,
+    configurePreviewServer: serve,
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), mapConfigFile()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

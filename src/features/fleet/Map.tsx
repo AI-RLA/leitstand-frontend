@@ -1,14 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useFleet } from "@/stores/fleet";
 import { useFields } from "@/api/fields";
 import type { Field } from "@/api/client";
 import { MARKER_COLOR } from "./constants";
-import { loadMapView, saveMapView, loadBasemap } from "@/stores/mapView";
-import { BasemapControl } from "@/components/map/BasemapControl";
+import { loadMapView, saveMapView } from "@/stores/mapView";
+import { LayerControl } from "@/components/map/LayerControl";
 import {
-  MAP_SOURCES,
+  mapSources,
   baseLayers,
 } from "@/components/map/BasemapControl.constants";
 import { fieldBbox, toFieldGeoJSON } from "@/components/map/fieldUtils";
@@ -208,6 +208,7 @@ function syncMarkers(
 export function FleetMap() {
   const ref = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
   const markers = useRef<Record<string, maplibregl.Marker>>({});
   const circleRef = useRef<CircleHandle | null>(null);
   const fieldPopupRef = useRef<maplibregl.Popup | null>(null);
@@ -265,23 +266,21 @@ export function FleetMap() {
       style: {
         version: 8,
         sources: {
-          ...MAP_SOURCES,
+          ...mapSources(),
           fields: {
             type: "geojson",
             data: toFieldGeoJSON(fieldsRef.current),
             promoteId: "id",
           },
         },
-        layers: [...baseLayers(loadBasemap()), ...fieldLayers],
+        layers: [...baseLayers(), ...fieldLayers],
       },
       ...loadMapView(),
       attributionControl: false,
     });
     map.addControl(new maplibregl.NavigationControl(), "bottom-right");
-    map.addControl(
-      new maplibregl.AttributionControl({ compact: true }),
-      "bottom-left",
-    );
+    map.addControl(new maplibregl.AttributionControl(), "bottom-left");
+    map.once("style.load", () => setLoadedMap(map));
     map.on("moveend", () => {
       const c = map.getCenter();
       saveMapView([c.lng, c.lat], map.getZoom());
@@ -341,6 +340,7 @@ export function FleetMap() {
       fieldPopupRef.current = null;
       map.remove();
       mapRef.current = null;
+      setLoadedMap(null);
       markers.current = {};
     };
   }, []);
@@ -405,7 +405,7 @@ export function FleetMap() {
   return (
     <div className="absolute inset-0">
       <div ref={ref} className="absolute inset-0" />
-      <BasemapControl mapRef={mapRef} />
+      <LayerControl map={loadedMap} />
     </div>
   );
 }

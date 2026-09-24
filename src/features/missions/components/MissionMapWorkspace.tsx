@@ -1,11 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { X, Crosshair } from "lucide-react";
-import { loadBasemap } from "@/stores/mapView";
-import { BasemapControl } from "@/components/map/BasemapControl";
+import { LayerControl } from "@/components/map/LayerControl";
 import {
-  MAP_SOURCES,
+  mapSources,
   baseLayers,
 } from "@/components/map/BasemapControl.constants";
 import { anchorFromSite, localToLatLon } from "../siteFrame";
@@ -67,7 +66,6 @@ function resolveWaypoints(
 }
 
 const SOURCES: Record<string, maplibregl.SourceSpecification> = {
-  ...MAP_SOURCES,
   "mn-waypoints": {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -155,6 +153,7 @@ export function MissionMapWorkspace({
 }: MissionMapWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
   const clickHandlerRef = useRef(onMapClick);
   // Plans already shown, by stage id; a plan the operator has not seen yet brings the map to it.
   const shownPlansRef = useRef<Set<string>>(new Set());
@@ -170,8 +169,8 @@ export function MissionMapWorkspace({
       container: containerRef.current,
       style: {
         version: 8,
-        sources: SOURCES,
-        layers: [...baseLayers(loadBasemap()), ...OVERLAY_LAYERS],
+        sources: { ...mapSources(), ...SOURCES },
+        layers: [...baseLayers(), ...OVERLAY_LAYERS],
       },
       center: [8.020798, 52.286366],
       zoom: 14,
@@ -180,10 +179,12 @@ export function MissionMapWorkspace({
     m.on("click", (e) => {
       clickHandlerRef.current(e.lngLat.lat, e.lngLat.lng);
     });
+    m.once("style.load", () => setLoadedMap(m));
     mapRef.current = m;
     return () => {
       m.remove();
       mapRef.current = null;
+      setLoadedMap(null);
     };
   }, []);
 
@@ -275,7 +276,7 @@ export function MissionMapWorkspace({
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="absolute inset-0" />
-      <BasemapControl mapRef={mapRef} />
+      <LayerControl map={loadedMap} />
       {addingIndex !== null && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white border border-primary rounded-md shadow-md flex items-center gap-2 px-3 py-1.5">
           <Crosshair className="w-3.5 h-3.5 text-primary" />

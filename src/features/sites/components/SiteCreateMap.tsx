@@ -1,13 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { loadBasemap } from "@/stores/mapView";
 import { headingEndpoint } from "@/lib/geo";
 import {
-  MAP_SOURCES,
+  mapSources,
   baseLayers,
 } from "@/components/map/BasemapControl.constants";
-import { BasemapControl } from "@/components/map/BasemapControl";
+import { LayerControl } from "@/components/map/LayerControl";
 import {
   type Stage,
   updateSources,
@@ -32,7 +31,6 @@ interface SiteCreateMapProps {
 }
 
 const ANCHOR_SOURCES: Record<string, maplibregl.SourceSpecification> = {
-  ...MAP_SOURCES,
   ...DRAW_SOURCES,
   "sn-heading": {
     type: "geojson",
@@ -60,6 +58,7 @@ export function SiteCreateMap({
 }: SiteCreateMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
 
   // Latest props in refs so map event handlers (registered once) see fresh
@@ -97,13 +96,14 @@ export function SiteCreateMap({
       container: containerRef.current,
       style: {
         version: 8,
-        sources: ANCHOR_SOURCES,
-        layers: [...baseLayers(loadBasemap()), ...ANCHOR_LAYERS],
+        sources: { ...mapSources(), ...ANCHOR_SOURCES },
+        layers: [...baseLayers(), ...ANCHOR_LAYERS],
       },
       center: [8.020798, 52.286366],
       zoom: 17,
     });
     m.addControl(new maplibregl.NavigationControl(), "bottom-right");
+    m.once("style.load", () => setLoadedMap(m));
     mapRef.current = m;
 
     setupDrawInteraction(m, outlineRef, drawStageRef, (v) =>
@@ -120,6 +120,7 @@ export function SiteCreateMap({
     return () => {
       m.remove();
       mapRef.current = null;
+      setLoadedMap(null);
       markerRef.current?.remove();
       markerRef.current = null;
     };
@@ -202,7 +203,7 @@ export function SiteCreateMap({
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="absolute inset-0" />
-      <BasemapControl mapRef={mapRef} />
+      <LayerControl map={loadedMap} />
     </div>
   );
 }
