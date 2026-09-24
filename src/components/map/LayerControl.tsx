@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { Check, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getMapConfig, type BasemapEntry } from "@/config/mapConfig";

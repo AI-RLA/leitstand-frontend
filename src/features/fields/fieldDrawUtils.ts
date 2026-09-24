@@ -1,4 +1,4 @@
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { MutableRefObject } from "react";
 
 export type Stage = "drawing" | "naming";

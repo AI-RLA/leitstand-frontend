@@ -16,6 +16,7 @@ import { MissionPathPreview } from "./components/MissionPathPreview";
 import { MissionStageTimeline } from "./components/MissionStageTimeline";
 import { RunHeader } from "./components/RunHeader";
 import { RunStatusLine } from "./components/RunStatusLine";
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 interface Props {
   missionId: string;
@@ -207,15 +208,17 @@ export function RunDetail({ missionId, runId }: Props) {
         </div>
         <div className="flex-[2] basis-[28rem] min-w-0 flex [@container(max-width:53.5rem)]:order-first">
           <div className="flex-1 h-[60vh] min-h-[20rem] sticky top-0 [@container(min-width:53.5rem)]:h-full">
-            <MissionPathPreview
-              stages={run.stages}
-              fitKey={run.run_id}
-              state={state}
-              sites={sites}
-              siteAnchors={run.site_anchors}
-              fields={coverageFields}
-              robotId={active ? run.robot_id : null}
-            />
+            <MapErrorBoundary>
+              <MissionPathPreview
+                stages={run.stages}
+                fitKey={run.run_id}
+                state={state}
+                sites={sites}
+                siteAnchors={run.site_anchors}
+                fields={coverageFields}
+                robotId={active ? run.robot_id : null}
+              />
+            </MapErrorBoundary>
           </div>
         </div>
       </div>

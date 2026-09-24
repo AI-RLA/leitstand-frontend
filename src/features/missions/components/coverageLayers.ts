@@ -1,7 +1,8 @@
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { CoverageStage } from "@/api/client";
 import { bboxOfPoints } from "@/components/map/fieldUtils";
 import { stageDrivenWaypoints } from "../stageWaypoints";
+import type * as GeoJSON from "geojson";
 
 /** The whole route of each planned stage, turns included, as [lng, lat] lines. */
 export function coverageLines(stages: CoverageStage[]): [number, number][][] {

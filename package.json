@@ -37,7 +37,7 @@
     "ai": "7.0.56",
     "clsx": "^2.1.1",
     "lucide-react": "^1.14.0",
-    "maplibre-gl": "^4.7.1",
+    "maplibre-gl": "6.11.2",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

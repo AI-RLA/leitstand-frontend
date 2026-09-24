@@ -22,6 +22,7 @@ import {
 import { MissionPathPreview } from "./components/MissionPathPreview";
 import { MissionStageTimeline } from "./components/MissionStageTimeline";
 import { RunsTable } from "./components/RunsTable";
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 interface Props {
   id: string;
@@ -331,13 +332,15 @@ export function MissionDetail({ id }: Props) {
         {/* Geometry is what this page is for, so the map leads once the columns stack. */}
         <div className="flex-[2] basis-[28rem] min-w-0 flex [@container(max-width:53.5rem)]:order-first">
           <div className="flex-1 h-[60vh] min-h-[20rem] sticky top-0 [@container(min-width:53.5rem)]:h-full">
-            <MissionPathPreview
-              stages={mission.stages}
-              fitKey={mission.mission_id}
-              state={null}
-              sites={sites}
-              fields={coverageFields}
-            />
+            <MapErrorBoundary>
+              <MissionPathPreview
+                stages={mission.stages}
+                fitKey={mission.mission_id}
+                state={null}
+                sites={sites}
+                fields={coverageFields}
+              />
+            </MapErrorBoundary>
           </div>
         </div>
       </div>

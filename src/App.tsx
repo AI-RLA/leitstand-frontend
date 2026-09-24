@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Sidebar } from "@/features/fleet/Sidebar";
 import { FleetMap } from "@/features/fleet/Map";
 import { ResizablePane } from "@/components/ui/ResizablePane";
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 export default function App() {
   const [leftDragging, setLeftDragging] = useState(false);
@@ -23,7 +24,9 @@ export default function App() {
         className="flex-1 relative overflow-hidden"
         style={isDragging ? { pointerEvents: "none" } : undefined}
       >
-        <FleetMap />
+        <MapErrorBoundary>
+          <FleetMap />
+        </MapErrorBoundary>
       </div>
     </div>
   );

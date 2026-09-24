@@ -21,8 +21,11 @@ import { MissionNew } from "./features/missions/MissionNew";
 import { SitesLayout } from "./features/sites/SitesLayout";
 import { SiteDetail } from "./features/sites/SiteDetail";
 import { SiteNew } from "./features/sites/SiteNew";
+import { setWorkerUrl } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { mapConfigReady } from "./config/mapConfig";
 import "./index.css";
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 const rootRoute = createRootRoute({ component: RootLayout });
 
@@ -51,7 +54,11 @@ const fieldIndexRoute = createRoute({
 const fieldNewRoute = createRoute({
   getParentRoute: () => fieldsRoute,
   path: "/new",
-  component: FieldDraw,
+  component: () => (
+    <MapErrorBoundary>
+      <FieldDraw />
+    </MapErrorBoundary>
+  ),
 });
 
 const fieldDetailRoute = createRoute({
@@ -68,7 +75,11 @@ const fieldEditRoute = createRoute({
   path: "/$id/edit",
   component: () => {
     const { id } = fieldEditRoute.useParams();
-    return <FieldEdit id={id} />;
+    return (
+      <MapErrorBoundary>
+        <FieldEdit id={id} />
+      </MapErrorBoundary>
+    );
   },
 });
 
@@ -201,6 +212,9 @@ declare module "@tanstack/react-router" {
     router: typeof router;
   }
 }
+
+// MapLibre cannot locate its worker inside a bundle, so the worker URL is set before any map exists.
+setWorkerUrl(maplibreWorkerUrl);
 
 // Maps build their basemap layers synchronously at mount, so the map config must be loaded first.
 await mapConfigReady;

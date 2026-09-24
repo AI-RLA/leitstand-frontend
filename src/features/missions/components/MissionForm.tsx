@@ -21,6 +21,7 @@ import {
   type StageKind,
 } from "./stageTypes";
 import type { WaypointDraft } from "./WaypointRow";
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 export interface MissionFormValues {
   name: string;
@@ -417,13 +418,15 @@ export function MissionForm({
       </div>
 
       <div className="flex-1 relative overflow-hidden">
-        <MissionMapWorkspace
-          stages={stages}
-          sites={sites}
-          addingIndex={addingIndex}
-          onMapClick={handleMapClick}
-          onCancelAddMode={() => setAddingIndex(null)}
-        />
+        <MapErrorBoundary>
+          <MissionMapWorkspace
+            stages={stages}
+            sites={sites}
+            addingIndex={addingIndex}
+            onMapClick={handleMapClick}
+            onCancelAddMode={() => setAddingIndex(null)}
+          />
+        </MapErrorBoundary>
       </div>
     </form>
   );

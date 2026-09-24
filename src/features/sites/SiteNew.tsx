@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { StepIndicator } from "@/components/ui/StepIndicator";
 import { Textarea } from "@/components/ui/Textarea";
 import { SiteCreateMap, type SiteCreateStep } from "./components/SiteCreateMap";
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 const STEP_LABELS = ["Anchor", "Heading", "Outline"] as const;
 const STEP_KEYS: SiteCreateStep[] = [
@@ -370,14 +371,16 @@ export function SiteNew() {
             )}
           </ModeBanner>
         )}
-        <SiteCreateMap
-          step={step}
-          anchor={anchor}
-          heading={heading}
-          outline={outline}
-          onAnchorChange={handleAnchorChange}
-          onOutlineChange={setOutline}
-        />
+        <MapErrorBoundary>
+          <SiteCreateMap
+            step={step}
+            anchor={anchor}
+            heading={heading}
+            outline={outline}
+            onAnchorChange={handleAnchorChange}
+            onOutlineChange={setOutline}
+          />
+        </MapErrorBoundary>
       </div>
     </form>
   );

@@ -1,4 +1,5 @@
 import type { Field } from "@/api/client";
+import type * as GeoJSON from "geojson";
 
 export type LngLatBox = [[number, number], [number, number]];
 

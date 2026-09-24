@@ -3,6 +3,7 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useFields } from "@/api/fields";
 import { ResizablePane } from "@/components/ui/ResizablePane";
 import { FieldsMap } from "./FieldsMap";
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 export function FieldsLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
@@ -41,7 +42,9 @@ export function FieldsLayout() {
           className="relative flex-1 min-w-0"
           style={isDragging ? { pointerEvents: "none" } : undefined}
         >
-          <FieldsMap selectedFieldId={selectedFieldId} />
+          <MapErrorBoundary>
+            <FieldsMap selectedFieldId={selectedFieldId} />
+          </MapErrorBoundary>
         </div>
         <ResizablePane
           paneId="fields-detail"
