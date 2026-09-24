@@ -54,11 +54,7 @@ const fieldIndexRoute = createRoute({
 const fieldNewRoute = createRoute({
   getParentRoute: () => fieldsRoute,
   path: "/new",
-  component: () => (
-    <MapErrorBoundary>
-      <FieldDraw />
-    </MapErrorBoundary>
-  ),
+  component: FieldDraw,
 });
 
 const fieldDetailRoute = createRoute({

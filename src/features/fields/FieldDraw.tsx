@@ -1,99 +1,43 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import * as maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
 import { useCreateField } from "@/api/fields";
 import { ApiError } from "@/api/client";
-import {
-  type Stage,
-  updateSources,
-  setupDrawInteraction,
-  DRAW_SOURCES,
-  DRAW_LAYERS,
-} from "./fieldDrawUtils";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { LayerControl } from "@/components/map/LayerControl";
-import {
-  mapSources,
-  baseLayers,
-} from "@/components/map/BasemapControl.constants";
+import { LeitstandMap } from "@/components/map/LeitstandMap";
+import { DrawLayer, type Vertex } from "@/components/map/draw/DrawLayer";
+
+type Stage = "drawing" | "naming";
 
 export function FieldDraw() {
   const navigate = useNavigate();
   const create = useCreateField();
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
-  // Refs to avoid stale closures in the map click handler
-  const vertsRef = useRef<[number, number][]>([]);
-  const stageRef = useRef<Stage>("drawing");
-
-  const [verts, setVertsState] = useState<[number, number][]>([]);
-  const [stage, setStageState] = useState<Stage>("drawing");
+  const [verts, setVerts] = useState<Vertex[]>([]);
+  const [stage, setStage] = useState<Stage>("drawing");
+  const [cursor, setCursor] = useState("crosshair");
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  function setVerts(v: [number, number][]) {
-    vertsRef.current = v;
-    setVertsState(v);
-  }
-  function setStage(s: Stage) {
-    stageRef.current = s;
-    setStageState(s);
-  }
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const m = new maplibregl.Map({
-      container: containerRef.current,
-      style: {
-        version: 8,
-        sources: { ...mapSources(), ...DRAW_SOURCES },
-        layers: [...baseLayers(), ...DRAW_LAYERS],
-      },
-      center: [8.020798, 52.286366],
-      zoom: 14,
-    });
-    m.addControl(new maplibregl.NavigationControl(), "bottom-right");
-    m.getCanvas().style.cursor = "crosshair";
-    setupDrawInteraction(m, vertsRef, stageRef, setVerts);
-    m.once("style.load", () => setLoadedMap(m));
-    mapRef.current = m;
-    return () => {
-      m.remove();
-      mapRef.current = null;
-      setLoadedMap(null);
-    };
-  }, []);
-
   function undo() {
-    const next = vertsRef.current.slice(0, -1);
-    setVerts(next);
-    if (mapRef.current) updateSources(mapRef.current, next);
+    setVerts((v) => v.slice(0, -1));
   }
 
   function reset() {
     setVerts([]);
     setStage("drawing");
     setError(null);
-    if (mapRef.current) {
-      mapRef.current.getCanvas().style.cursor = "crosshair";
-      updateSources(mapRef.current, []);
-    }
   }
 
   function finishDrawing() {
     setStage("naming");
-    if (mapRef.current) mapRef.current.getCanvas().style.cursor = "default";
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const ring: [number, number][] = [...vertsRef.current, vertsRef.current[0]];
+    const ring: Vertex[] = [...verts, verts[0]];
     try {
       const field = await create.mutateAsync({
         name,
@@ -184,8 +128,17 @@ export function FieldDraw() {
       {/* Map + naming panel */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative">
-          <div ref={containerRef} className="absolute inset-0" />
-          <LayerControl map={loadedMap} />
+          <LeitstandMap
+            view={{ center: [8.020798, 52.286366], zoom: 14 }}
+            cursor={cursor}
+          >
+            <DrawLayer
+              vertices={verts}
+              onChange={setVerts}
+              enabled={stage === "drawing"}
+              onCursor={setCursor}
+            />
+          </LeitstandMap>
         </div>
 
         {stage === "naming" && (
