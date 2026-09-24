@@ -6,8 +6,11 @@ import { CompassDial } from "@/components/ui/CompassDial";
 import { Input } from "@/components/ui/Input";
 import { StepIndicator } from "@/components/ui/StepIndicator";
 import { Textarea } from "@/components/ui/Textarea";
-import { SiteCreateMap, type SiteCreateStep } from "./components/SiteCreateMap";
-import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
+import {
+  SiteCreateMap,
+  type Anchor,
+  type SiteCreateStep,
+} from "./components/SiteCreateMap";
 
 const STEP_LABELS = ["Anchor", "Heading", "Outline"] as const;
 const STEP_KEYS: SiteCreateStep[] = [
@@ -29,14 +32,11 @@ export function SiteNew() {
   const [name, setName] = useState("");
   const [nav2MapRef, setNav2MapRef] = useState("");
   const [description, setDescription] = useState("");
-  const [anchor, setAnchorState] = useState<{
-    lat: number;
-    lon: number;
-  } | null>(null);
+  const [anchor, setAnchorState] = useState<Anchor | null>(null);
   const [heading, setHeading] = useState(0);
   const [outline, setOutline] = useState<[number, number][]>([]);
 
-  function handleAnchorChange(next: { lat: number; lon: number }) {
+  function handleAnchorChange(next: Anchor) {
     const isFirst = !anchor;
     setAnchorState(next);
     if (isFirst && step === "place-anchor") setStep("set-heading");
@@ -371,16 +371,14 @@ export function SiteNew() {
             )}
           </ModeBanner>
         )}
-        <MapErrorBoundary>
-          <SiteCreateMap
-            step={step}
-            anchor={anchor}
-            heading={heading}
-            outline={outline}
-            onAnchorChange={handleAnchorChange}
-            onOutlineChange={setOutline}
-          />
-        </MapErrorBoundary>
+        <SiteCreateMap
+          step={step}
+          anchor={anchor}
+          heading={heading}
+          outline={outline}
+          onAnchorChange={handleAnchorChange}
+          onOutlineChange={setOutline}
+        />
       </div>
     </form>
   );

@@ -1,19 +1,16 @@
-import { useEffect, useRef, useState } from "react";
-import * as maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  Layer,
+  Marker,
+  Source,
+  type MapLayerMouseEvent,
+} from "@vis.gl/react-maplibre";
+import type { LineLayerSpecification } from "maplibre-gl";
+import type { Feature, FeatureCollection, LineString } from "geojson";
 import { headingEndpoint } from "@/lib/geo";
-import {
-  mapSources,
-  baseLayers,
-} from "@/components/map/BasemapControl.constants";
-import { LayerControl } from "@/components/map/LayerControl";
-import {
-  type Stage,
-  updateSources,
-  setupDrawInteraction,
-  DRAW_SOURCES,
-  DRAW_LAYERS,
-} from "@/features/fields/fieldDrawUtils";
+import { LeitstandMap } from "@/components/map/LeitstandMap";
+import { FitBounds } from "@/components/map/FitBounds";
+import { DrawLayer, type Vertex } from "@/components/map/draw/DrawLayer";
 
 export type SiteCreateStep =
   | "place-anchor"
@@ -21,32 +18,26 @@ export type SiteCreateStep =
   | "trace-outline"
   | "done";
 
+export type Anchor = { lat: number; lon: number };
+
 interface SiteCreateMapProps {
   step: SiteCreateStep;
-  anchor: { lat: number; lon: number } | null;
+  anchor: Anchor | null;
   heading: number;
-  outline: [number, number][];
-  onAnchorChange: (anchor: { lat: number; lon: number }) => void;
-  onOutlineChange: (verts: [number, number][]) => void;
+  outline: Vertex[];
+  onAnchorChange: (anchor: Anchor) => void;
+  onOutlineChange: Dispatch<SetStateAction<Vertex[]>>;
 }
 
-const ANCHOR_SOURCES: Record<string, maplibregl.SourceSpecification> = {
-  ...DRAW_SOURCES,
-  "sn-heading": {
-    type: "geojson",
-    data: { type: "FeatureCollection", features: [] },
-  },
+const HEADING_PAINT: LineLayerSpecification["paint"] = {
+  "line-color": "#16A34A",
+  "line-width": 3,
 };
 
-const ANCHOR_LAYERS: maplibregl.LayerSpecification[] = [
-  ...DRAW_LAYERS,
-  {
-    id: "sn-heading-line",
-    type: "line",
-    source: "sn-heading",
-    paint: { "line-color": "#16A34A", "line-width": 3 },
-  },
-];
+const NO_HEADING: FeatureCollection = {
+  type: "FeatureCollection",
+  features: [],
+};
 
 export function SiteCreateMap({
   step,
@@ -56,154 +47,79 @@ export function SiteCreateMap({
   onAnchorChange,
   onOutlineChange,
 }: SiteCreateMapProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
-  const markerRef = useRef<maplibregl.Marker | null>(null);
+  const [drawCursor, setDrawCursor] = useState("crosshair");
 
-  // Latest props in refs so map event handlers (registered once) see fresh
-  // values without re-binding.
-  const stepRef = useRef(step);
-  const anchorRef = useRef(anchor);
-  const onAnchorRef = useRef(onAnchorChange);
-  const onOutlineRef = useRef(onOutlineChange);
-  const outlineRef = useRef(outline);
-  // The draw interaction uses its own Stage type — "drawing" only when we're
-  // actively tracing the polygon. Other steps map to "naming" (idle).
-  const drawStageRef = useRef<Stage>("naming");
-
-  useEffect(() => {
-    stepRef.current = step;
-    drawStageRef.current = step === "trace-outline" ? "drawing" : "naming";
-  }, [step]);
-  useEffect(() => {
-    anchorRef.current = anchor;
-  }, [anchor]);
-  useEffect(() => {
-    onAnchorRef.current = onAnchorChange;
-  }, [onAnchorChange]);
-  useEffect(() => {
-    onOutlineRef.current = onOutlineChange;
-  }, [onOutlineChange]);
-  useEffect(() => {
-    outlineRef.current = outline;
-  }, [outline]);
-
-  // One-time init.
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const m = new maplibregl.Map({
-      container: containerRef.current,
-      style: {
-        version: 8,
-        sources: { ...mapSources(), ...ANCHOR_SOURCES },
-        layers: [...baseLayers(), ...ANCHOR_LAYERS],
-      },
-      center: [8.020798, 52.286366],
-      zoom: 17,
-    });
-    m.addControl(new maplibregl.NavigationControl(), "bottom-right");
-    m.once("style.load", () => setLoadedMap(m));
-    mapRef.current = m;
-
-    setupDrawInteraction(m, outlineRef, drawStageRef, (v) =>
-      onOutlineRef.current(v),
-    );
-
-    // Place-anchor click handler — separate from the draw click handler
-    // because the draw handler only fires when drawStageRef === "drawing".
-    m.on("click", (e) => {
-      if (stepRef.current !== "place-anchor") return;
-      onAnchorRef.current({ lat: e.lngLat.lat, lon: e.lngLat.lng });
-    });
-
-    return () => {
-      m.remove();
-      mapRef.current = null;
-      setLoadedMap(null);
-      markerRef.current?.remove();
-      markerRef.current = null;
-    };
-  }, []);
-
-  // Cursor based on step.
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    if (step === "place-anchor" || step === "trace-outline") {
-      m.getCanvas().style.cursor = "crosshair";
-    } else {
-      m.getCanvas().style.cursor = "";
-    }
-  }, [step]);
-
-  // Anchor marker. Create/update as anchor changes; recenter map first time.
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    if (!anchor) {
-      markerRef.current?.remove();
-      markerRef.current = null;
-      return;
-    }
-    const lngLat: [number, number] = [anchor.lon, anchor.lat];
-    if (!markerRef.current) {
-      const el = document.createElement("div");
-      el.className = "site-anchor-pin";
-      el.style.cssText =
-        "width:18px;height:18px;border-radius:50%;background:#16A34A;border:3px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);cursor:grab;";
-      const marker = new maplibregl.Marker({
-        element: el,
-        draggable: true,
-        anchor: "center",
-      })
-        .setLngLat(lngLat)
-        .addTo(m);
-      marker.on("dragend", () => {
-        const ll = marker.getLngLat();
-        onAnchorRef.current({ lat: ll.lat, lon: ll.lng });
-      });
-      markerRef.current = marker;
-      m.flyTo({ center: lngLat, zoom: 18, duration: 600 });
-    } else {
-      markerRef.current.setLngLat(lngLat);
-    }
-  }, [anchor]);
-
-  // Heading line — recompute on anchor or heading change.
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    const src = m.getSource("sn-heading") as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    if (!src) return;
-    if (!anchor) {
-      src.setData({ type: "FeatureCollection", features: [] });
-      return;
-    }
+  const headingLine = useMemo<Feature<LineString> | FeatureCollection>(() => {
+    if (!anchor) return NO_HEADING;
     const endpoint = headingEndpoint(anchor.lat, anchor.lon, heading, 14);
-    src.setData({
+    return {
       type: "Feature",
+      properties: {},
       geometry: {
         type: "LineString",
         coordinates: [[anchor.lon, anchor.lat], endpoint],
       },
-      properties: {},
-    });
+    };
   }, [anchor, heading]);
 
-  // Outline updates — sync to draw sources when parent state changes.
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    updateSources(m, outline);
-  }, [outline]);
+  // A zero-size box fits at maxZoom, so the first anchor brings the map to it at zoom 18.
+  const anchorBounds = useMemo<[Vertex, Vertex] | null>(
+    () =>
+      anchor
+        ? [
+            [anchor.lon, anchor.lat],
+            [anchor.lon, anchor.lat],
+          ]
+        : null,
+    [anchor],
+  );
+
+  const cursor =
+    step === "trace-outline"
+      ? drawCursor
+      : step === "place-anchor"
+        ? "crosshair"
+        : "";
 
   return (
-    <div className="relative h-full w-full">
-      <div ref={containerRef} className="absolute inset-0" />
-      <LayerControl map={loadedMap} />
-    </div>
+    <LeitstandMap
+      view={{ center: [8.020798, 52.286366], zoom: 17 }}
+      cursor={cursor}
+      onClick={
+        step === "place-anchor"
+          ? (e: MapLayerMouseEvent) =>
+              onAnchorChange({ lat: e.lngLat.lat, lon: e.lngLat.lng })
+          : undefined
+      }
+    >
+      <DrawLayer
+        vertices={outline}
+        onChange={onOutlineChange}
+        enabled={step === "trace-outline"}
+        onCursor={setDrawCursor}
+      />
+      <Source id="sn-heading" type="geojson" data={headingLine}>
+        <Layer id="sn-heading-line" type="line" paint={HEADING_PAINT} />
+      </Source>
+      {anchor && (
+        <Marker
+          longitude={anchor.lon}
+          latitude={anchor.lat}
+          anchor="center"
+          draggable
+          onDrag={(e) =>
+            onAnchorChange({ lat: e.lngLat.lat, lon: e.lngLat.lng })
+          }
+        >
+          <div className="h-[18px] w-[18px] cursor-grab rounded-full border-[3px] border-white bg-[#16A34A] shadow-[0_1px_3px_rgba(0,0,0,0.3)]" />
+        </Marker>
+      )}
+      <FitBounds
+        bounds={anchorBounds}
+        fitKey={anchor ? "anchor" : null}
+        padding={0}
+        maxZoom={18}
+      />
+    </LeitstandMap>
   );
 }
