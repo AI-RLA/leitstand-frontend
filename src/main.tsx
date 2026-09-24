@@ -25,7 +25,6 @@ import { setWorkerUrl } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { mapConfigReady } from "./config/mapConfig";
 import "./index.css";
-import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 const rootRoute = createRootRoute({ component: RootLayout });
 
@@ -71,11 +70,7 @@ const fieldEditRoute = createRoute({
   path: "/$id/edit",
   component: () => {
     const { id } = fieldEditRoute.useParams();
-    return (
-      <MapErrorBoundary>
-        <FieldEdit id={id} />
-      </MapErrorBoundary>
-    );
+    return <FieldEdit id={id} />;
   },
 });
 

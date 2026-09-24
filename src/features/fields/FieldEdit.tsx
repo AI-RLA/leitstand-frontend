@@ -1,150 +1,79 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import * as maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
 import { useField, useUpdateField } from "@/api/fields";
-import { ApiError } from "@/api/client";
-import {
-  type Stage,
-  updateSources,
-  setupDrawInteraction,
-  DRAW_SOURCES,
-  DRAW_LAYERS,
-} from "./fieldDrawUtils";
+import { ApiError, type Field } from "@/api/client";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { LayerControl } from "@/components/map/LayerControl";
-import {
-  mapSources,
-  baseLayers,
-} from "@/components/map/BasemapControl.constants";
+import { LeitstandMap } from "@/components/map/LeitstandMap";
+import { FitBounds } from "@/components/map/FitBounds";
+import { fieldBbox } from "@/components/map/fieldUtils";
+import { DrawLayer, type Vertex } from "@/components/map/draw/DrawLayer";
+
+type Stage = "drawing" | "naming";
 
 interface Props {
   id: string;
 }
 
+// The stored ring repeats its first vertex at the end, the editor works on the open list.
+function exteriorOf(field: Field): Vertex[] {
+  return ((field.geometry.coordinates[0] ?? []) as Vertex[]).slice(0, -1);
+}
+
 export function FieldEdit({ id }: Props) {
-  const navigate = useNavigate();
-  const { data: field, isLoading, isError } = useField(id);
-  const update = useUpdateField(id);
+  const { data: field, isLoading } = useField(id);
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const [loadedMap, setLoadedMap] = useState<maplibregl.Map | null>(null);
-  const vertsRef = useRef<[number, number][]>([]);
-  const stageRef = useRef<Stage>("drawing");
-  const seededRef = useRef(false);
-
-  const [verts, setVertsState] = useState<[number, number][]>([]);
-  const [stage, setStageState] = useState<Stage>("drawing");
-  const [name, setName] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  function setVerts(v: [number, number][]) {
-    vertsRef.current = v;
-    setVertsState(v);
-  }
-  function setStage(s: Stage) {
-    stageRef.current = s;
-    setStageState(s);
-  }
-
-  function fitField(m: maplibregl.Map, ring: [number, number][]) {
-    if (ring.length < 2) return;
-    const lons = ring.map((c) => c[0]);
-    const lats = ring.map((c) => c[1]);
-    m.fitBounds(
-      [
-        [Math.min(...lons), Math.min(...lats)],
-        [Math.max(...lons), Math.max(...lats)],
-      ],
-      { padding: 80, duration: 400 },
+  // The editor mounts once the field exists and stays even if a later refetch fails, so edits are never lost.
+  if (field) return <FieldEditor key={field.id} field={field} />;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full text-ui-md text-t3">
+        Loading…
+      </div>
     );
   }
+  return (
+    <div className="flex items-center justify-center h-full text-ui-md text-red-500">
+      Field not found.
+    </div>
+  );
+}
 
-  // Seed vertices once field data is available
-  useEffect(() => {
-    if (!field || seededRef.current) return;
-    seededRef.current = true;
-    const ring = (field.geometry.coordinates[0] ?? []) as [number, number][];
-    const exterior = ring.slice(0, -1);
-    setVerts(exterior);
-    setName(field.name);
-    setNotes(field.notes ?? "");
+function FieldEditor({ field }: { field: Field }) {
+  const navigate = useNavigate();
+  const update = useUpdateField(field.id);
 
-    const m = mapRef.current;
-    if (m && m.isStyleLoaded()) {
-      updateSources(m, exterior);
-      fitField(m, ring);
-    }
-  }, [field]);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const m = new maplibregl.Map({
-      container: containerRef.current,
-      style: {
-        version: 8,
-        sources: { ...mapSources(), ...DRAW_SOURCES },
-        layers: [...baseLayers(), ...DRAW_LAYERS],
-      },
-      center: [8.020798, 52.286366],
-      zoom: 14,
-    });
-    m.addControl(new maplibregl.NavigationControl(), "bottom-right");
-    m.getCanvas().style.cursor = "crosshair";
-    // Seed existing polygon then enable interaction after style is parsed.
-    // Deferred to style.load because updateSources needs getSource().
-    // seededRef.current is always true here: map only mounts after isLoading=false.
-    m.once("style.load", () => {
-      if (seededRef.current) {
-        const v = vertsRef.current;
-        updateSources(m, v);
-        if (v.length >= 1) fitField(m, [...v, v[0]]);
-      }
-      setupDrawInteraction(m, vertsRef, stageRef, setVerts);
-    });
-    m.once("style.load", () => setLoadedMap(m));
-    mapRef.current = m;
-    return () => {
-      m.remove();
-      mapRef.current = null;
-      setLoadedMap(null);
-    };
-  }, []);
+  const [verts, setVerts] = useState<Vertex[]>(() => exteriorOf(field));
+  const [stage, setStage] = useState<Stage>("drawing");
+  const [cursor, setCursor] = useState("crosshair");
+  const [name, setName] = useState(field.name);
+  const [notes, setNotes] = useState(field.notes ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [bounds] = useState(() =>
+    field.geometry.coordinates[0]?.length ? fieldBbox(field.geometry) : null,
+  );
 
   function undo() {
-    const next = vertsRef.current.slice(0, -1);
-    setVerts(next);
-    if (mapRef.current) updateSources(mapRef.current, next);
+    setVerts((v) => v.slice(0, -1));
   }
 
   function reset() {
-    const original = field
-      ? (field.geometry.coordinates[0] as [number, number][]).slice(0, -1)
-      : [];
-    setVerts(original);
+    setVerts(exteriorOf(field));
     setStage("drawing");
     setError(null);
-    const m = mapRef.current;
-    if (m) {
-      m.getCanvas().style.cursor = "crosshair";
-      updateSources(m, original);
-    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const ring: [number, number][] = [...vertsRef.current, vertsRef.current[0]];
+    const ring: Vertex[] = [...verts, verts[0]];
     try {
       await update.mutateAsync({
         name,
         geometry: { type: "Polygon", coordinates: [ring] },
         notes: notes || null,
       });
-      navigate({ to: "/fields/$id", params: { id } });
+      navigate({ to: "/fields/$id", params: { id: field.id } });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(`Server error ${err.status}: ${err.body}`);
@@ -153,21 +82,6 @@ export function FieldEdit({ id }: Props) {
         console.error(err);
       }
     }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full text-ui-md text-t3">
-        Loading…
-      </div>
-    );
-  }
-  if (isError || !field) {
-    return (
-      <div className="flex items-center justify-center h-full text-ui-md text-red-500">
-        Field not found.
-      </div>
-    );
   }
 
   return (
@@ -225,11 +139,7 @@ export function FieldEdit({ id }: Props) {
               </button>
             </div>
             <button
-              onClick={() => {
-                setStage("naming");
-                if (mapRef.current)
-                  mapRef.current.getCanvas().style.cursor = "default";
-              }}
+              onClick={() => setStage("naming")}
               disabled={verts.length < 3}
               className="text-ui-sm bg-primary text-white px-3.5 py-1 rounded-md font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
             >
@@ -239,11 +149,7 @@ export function FieldEdit({ id }: Props) {
         )}
         {stage === "naming" && (
           <button
-            onClick={() => {
-              setStage("drawing");
-              if (mapRef.current)
-                mapRef.current.getCanvas().style.cursor = "crosshair";
-            }}
+            onClick={() => setStage("drawing")}
             className="text-ui-sm text-t2 border border-border px-2.5 py-1 rounded-md hover:bg-[#F1F5F9] transition-colors"
           >
             Redraw
@@ -254,8 +160,18 @@ export function FieldEdit({ id }: Props) {
       {/* Map + naming panel */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative">
-          <div ref={containerRef} className="absolute inset-0" />
-          <LayerControl map={loadedMap} />
+          <LeitstandMap
+            view={{ center: [8.020798, 52.286366], zoom: 14 }}
+            cursor={cursor}
+          >
+            <DrawLayer
+              vertices={verts}
+              onChange={setVerts}
+              enabled={stage === "drawing"}
+              onCursor={setCursor}
+            />
+            <FitBounds bounds={bounds} fitKey={field.id} />
+          </LeitstandMap>
         </div>
 
         {stage === "naming" && (
