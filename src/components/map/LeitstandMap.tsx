@@ -108,8 +108,10 @@ export function LeitstandMap({
         {navigation && (
           <NavigationControl position="bottom-right" {...navigation} />
         )}
+        {/* The OSM tile usage policy asks that the credit is never hidden behind a toggle, so it never collapses. */}
         <AttributionControl
           position="bottom-left"
+          compact={false}
           customAttribution={MAPLIBRE_CREDIT}
         />
         <LayerControl />
