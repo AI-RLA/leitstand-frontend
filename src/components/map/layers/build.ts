@@ -6,9 +6,10 @@ import type {
 import type { BasemapEntry } from "@/config/mapConfig";
 
 // A colon keeps it apart from basemap-<id>, since config ids cannot contain one.
-const BACKGROUND_ID = "basemap:background";
+export const BACKGROUND_ID = "basemap:background";
+export const BACKGROUND_PAINT = { "background-color": "#e2e8f0" } as const;
 
-function layerId(entryId: string): string {
+export function layerId(entryId: string): string {
   return `basemap-${entryId}`;
 }
 
@@ -27,7 +28,7 @@ export function baseLayers(
     {
       id: BACKGROUND_ID,
       type: "background",
-      paint: { "background-color": "#e2e8f0" },
+      paint: BACKGROUND_PAINT,
     },
     ...entries.map(
       (e): LayerSpecification => ({

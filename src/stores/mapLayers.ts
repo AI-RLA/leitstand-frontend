@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { BasemapEntry } from "@/config/mapConfig";
+import { getMapConfig, type BasemapEntry } from "@/config/mapConfig";
 
 const KEY = "leitstand.mapLayers";
 const LEGACY_KEY = "leitstand.basemap";
@@ -72,4 +72,10 @@ export function resolveBasemap(
     if (byRole) return byRole;
   }
   return entries[0] ?? null;
+}
+
+export function useActiveBasemap() {
+  const { entries, rejected } = getMapConfig();
+  const saved = useMapLayers((s) => s.basemap);
+  return { entries, rejected, active: resolveBasemap(saved, entries) };
 }
