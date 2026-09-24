@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useFields } from "@/api/fields";
 import { useRobots } from "@/api/robots";
-import { useSites } from "@/api/sites";
+import { NO_SITES, useSites } from "@/api/sites";
 import type { Robot, StageInput } from "@/api/client";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -21,7 +21,6 @@ import {
   type StageKind,
 } from "./stageTypes";
 import type { WaypointDraft } from "./WaypointRow";
-import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 export interface MissionFormValues {
   name: string;
@@ -125,7 +124,7 @@ export function MissionForm({
   onSubmit,
   onCancel,
 }: MissionFormProps) {
-  const { data: sites = [] } = useSites();
+  const { data: sites = NO_SITES, isPending: sitesPending } = useSites();
   const { data: fields = [] } = useFields();
   const { data: robots = [] } = useRobots();
 
@@ -418,15 +417,14 @@ export function MissionForm({
       </div>
 
       <div className="flex-1 relative overflow-hidden">
-        <MapErrorBoundary>
-          <MissionMapWorkspace
-            stages={stages}
-            sites={sites}
-            addingIndex={addingIndex}
-            onMapClick={handleMapClick}
-            onCancelAddMode={() => setAddingIndex(null)}
-          />
-        </MapErrorBoundary>
+        <MissionMapWorkspace
+          stages={stages}
+          sites={sites}
+          sitesReady={!sitesPending}
+          addingIndex={addingIndex}
+          onMapClick={handleMapClick}
+          onCancelAddMode={() => setAddingIndex(null)}
+        />
       </div>
     </form>
   );

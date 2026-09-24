@@ -40,20 +40,17 @@ export function mainlandFeatures(
 
 // Solid, uncased and in the field's own green, because the mainland is part of the field and a
 // dashed, cased line is how these maps draw a driven path.
+export const MAINLAND_PAINT: maplibregl.LineLayerSpecification["paint"] = {
+  "line-color": "#16A34A",
+  "line-width": 1.25,
+  "line-opacity": 0.55,
+};
+
 export function mainlandLayer(
   id: string,
   source: string,
 ): maplibregl.LayerSpecification {
-  return {
-    id,
-    type: "line",
-    source,
-    paint: {
-      "line-color": "#16A34A",
-      "line-width": 1.25,
-      "line-opacity": 0.55,
-    },
-  };
+  return { id, type: "line", source, paint: MAINLAND_PAINT };
 }
 
 export function coverageBounds(
