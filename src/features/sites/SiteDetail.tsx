@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/Textarea";
 import { toSiteViewModel } from "./adapters";
 import { SiteMiniMap } from "./components/SiteMiniMap";
 import { SiteUsagePanel } from "./components/SiteUsagePanel";
-import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 interface Props {
   id: string;
@@ -266,9 +265,7 @@ export function SiteDetail({ id }: Props) {
           </div>
 
           {/* Mini-map */}
-          <MapErrorBoundary>
-            <SiteMiniMap vm={vm} />
-          </MapErrorBoundary>
+          <SiteMiniMap vm={vm} />
 
           {/* Details */}
           <div className="bg-white border border-border rounded-lg mb-3 overflow-hidden">
