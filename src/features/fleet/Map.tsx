@@ -7,7 +7,7 @@ import { LeitstandMap } from "@/components/map/LeitstandMap";
 import { FieldsLayer } from "@/components/map/FieldsLayer";
 import { FitBounds } from "@/components/map/FitBounds";
 import { useFieldBounds } from "@/components/map/useFieldBounds";
-import { FleetRobotMarkers } from "./FleetRobotMarkers";
+import { RobotsLayer } from "./RobotsLayer";
 import { FieldPopupCard } from "./FieldPopupCard";
 
 type FieldPopupAt = { fieldId: string; lngLat: [number, number] };
@@ -75,7 +75,7 @@ export function FleetMap() {
         onClick={onFieldClick}
       />
       <FitBounds bounds={bounds} fitKey={selectedFieldId} />
-      <FleetRobotMarkers />
+      <RobotsLayer />
       <FlyToRobot />
       {popup && popupField && (
         <Popup
