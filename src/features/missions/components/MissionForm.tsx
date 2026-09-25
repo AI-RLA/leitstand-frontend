@@ -132,6 +132,11 @@ export function MissionForm({
   const [description, setDescription] = useState(initialDescription);
   const [stages, setStages] = useState<StageDraft[]>(initialStages);
   const [robotId, setRobotId] = useState<string | null>(initialRobotId);
+
+  // The map shows robots from the live feed, which can know a robot before the robot list does.
+  function chooseRobot(id: string) {
+    if (robots.some((r) => r.id === id)) setRobotId(id);
+  }
   const [addingIndex, setAddingIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -421,6 +426,8 @@ export function MissionForm({
           stages={stages}
           sites={sites}
           sitesReady={!sitesPending}
+          robotId={robotId}
+          onRobotClick={chooseRobot}
           addingIndex={addingIndex}
           onMapClick={handleMapClick}
           onCancelAddMode={() => setAddingIndex(null)}

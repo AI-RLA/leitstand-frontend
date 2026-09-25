@@ -29,6 +29,7 @@ function FlyToRobot() {
 export function FleetMap() {
   const { data: fields = NO_FIELDS } = useFields();
   const selectedFieldId = useFleet((s) => s.selectedFieldId);
+  const selectedRobotId = useFleet((s) => s.selectedId);
   const [popup, setPopup] = useState<FieldPopupAt | null>(null);
 
   const bounds = useFieldBounds(fields, selectedFieldId);
@@ -60,6 +61,11 @@ export function FleetMap() {
     }
   }
 
+  function toggleRobot(id: string) {
+    const { selectedId, select } = useFleet.getState();
+    select(selectedId === id ? null : id);
+  }
+
   // A click outside all fields closes an open popup and clears its selection.
   function onMapClick(e: MapLayerMouseEvent) {
     if (e.features?.length || !popupField) return;
@@ -75,7 +81,7 @@ export function FleetMap() {
         onClick={onFieldClick}
       />
       <FitBounds bounds={bounds} fitKey={selectedFieldId} />
-      <RobotsLayer />
+      <RobotsLayer highlightId={selectedRobotId} onRobotClick={toggleRobot} />
       <FlyToRobot />
       {popup && popupField && (
         <Popup

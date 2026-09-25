@@ -10,6 +10,7 @@ import { X, Crosshair } from "lucide-react";
 import { FitBounds } from "@/components/map/FitBounds";
 import { bboxOfPoints } from "@/components/map/fieldUtils";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
+import { RobotsLayer } from "@/features/fleet/RobotsLayer";
 import { anchorFromSite, localToLatLon } from "../siteFrame";
 import {
   coverageBounds,
@@ -25,6 +26,9 @@ interface MissionMapWorkspaceProps {
   sites: Site[];
   // Site-local waypoints resolve only once the sites have loaded.
   sitesReady: boolean;
+  // The robot chosen for the mission, drawn in full while the others are muted.
+  robotId: string | null;
+  onRobotClick: (robotId: string) => void;
   addingIndex: number | null; // null = idle
   onMapClick: (lat: number, lon: number) => void;
   onCancelAddMode: () => void;
@@ -145,6 +149,8 @@ export function MissionMapWorkspace({
   stages,
   sites,
   sitesReady,
+  robotId,
+  onRobotClick,
   addingIndex,
   onMapClick,
   onCancelAddMode,
@@ -261,6 +267,11 @@ export function MissionMapWorkspace({
           padding={40}
         />
         <FitNewPlans planned={planned} initial={openingPlans} />
+        <RobotsLayer
+          fullIds={robotId ? [robotId] : []}
+          // While adding waypoints a click on a robot places the waypoint there instead.
+          onRobotClick={addingIndex === null ? onRobotClick : undefined}
+        />
       </LeitstandMap>
       {addingIndex !== null && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white border border-primary rounded-md shadow-md flex items-center gap-2 px-3 py-1.5">

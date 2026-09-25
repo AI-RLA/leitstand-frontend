@@ -337,6 +337,7 @@ export function MissionDetail({ id }: Props) {
               state={null}
               sites={sites}
               fields={coverageFields}
+              robotId={dispatchRobot || null}
             />
           </div>
         </div>

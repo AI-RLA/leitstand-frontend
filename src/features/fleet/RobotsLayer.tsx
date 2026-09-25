@@ -11,6 +11,7 @@ import type {
 } from "maplibre-gl";
 import type { Feature, Polygon } from "geojson";
 import { useShallow } from "zustand/react/shallow";
+import { cn } from "@/lib/utils";
 import { useFleet } from "@/stores/fleet";
 import { MARKER_COLOR } from "./constants";
 
@@ -45,10 +46,8 @@ function circle(lon: number, lat: number, radiusM: number): Feature<Polygon> {
 }
 
 // A geographic circle rather than a sized element, so it scales with the zoom on its own.
-function AccuracyCircle() {
-  const pose = useFleet((s) =>
-    s.selectedId ? (s.robots[s.selectedId]?.pose ?? null) : null,
-  );
+function AccuracyCircle({ robotId }: { robotId: string }) {
+  const pose = useFleet((s) => s.robots[robotId]?.pose ?? null);
   const radius = pose?.horizontal_accuracy_m;
   const data = useMemo(
     () =>
@@ -66,25 +65,35 @@ function AccuracyCircle() {
   );
 }
 
+// Stops the click at the marker, so it does not also reach the map as a click on the ground.
+function markerClick(id: string, onClick: ((id: string) => void) | undefined) {
+  if (!onClick) return undefined;
+  return (e: MarkerEvent<MouseEvent>) => {
+    e.originalEvent.stopPropagation();
+    onClick(id);
+  };
+}
+
+interface MarkerProps {
+  id: string;
+  onClick?: (id: string) => void;
+}
+
 // Selects fields rather than the entry, because the store updates a robot's entry in place.
-function RobotMarker({ id }: { id: string }) {
+function FullMarker({
+  id,
+  highlighted,
+  onClick,
+}: MarkerProps & { highlighted: boolean }) {
   const pose = useFleet((s) => s.robots[id]?.pose ?? null);
   const online = useFleet((s) => s.robots[id]?.online ?? false);
   const status = useFleet((s) => s.robots[id]?.status ?? null);
-  const selected = useFleet((s) => s.selectedId === id);
   if (!pose) return null;
 
   const color = online
     ? (MARKER_COLOR[status ?? "idle"] ?? "#94A3B8")
     : MARKER_COLOR.offline;
   const heading = online ? pose.heading_deg : null;
-
-  // Stops the click here, so it does not also reach the map as a click outside every field.
-  function onClick(e: MarkerEvent<MouseEvent>) {
-    e.originalEvent.stopPropagation();
-    const { selectedId, select } = useFleet.getState();
-    select(selectedId === id ? null : id);
-  }
 
   // The notch stays mounted and only empties, so it keeps its place under the dot in the DOM.
   return (
@@ -109,15 +118,22 @@ function RobotMarker({ id }: { id: string }) {
           )}
         </svg>
       </Marker>
-      <Marker longitude={pose.lon} latitude={pose.lat} onClick={onClick}>
+      <Marker
+        longitude={pose.lon}
+        latitude={pose.lat}
+        onClick={markerClick(id, onClick)}
+      >
         <div
           title={id}
-          className="flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-full border-2 border-white/85 text-[7px] font-bold leading-none text-white"
+          className={cn(
+            "flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-white/85 text-[7px] font-bold leading-none text-white",
+            onClick && "cursor-pointer",
+          )}
           style={{
             background: color,
             opacity: online ? 1 : 0.6,
             boxShadow:
-              online && selected
+              online && highlighted
                 ? "0 0 0 3px rgba(22,163,74,0.35), 0 2px 8px rgba(0,0,0,0.4)"
                 : "0 2px 8px rgba(0,0,0,0.35)",
           }}
@@ -129,8 +145,52 @@ function RobotMarker({ id }: { id: string }) {
   );
 }
 
+// The full marker's shape without colour or heading, so it reads as a robot and never as a route point.
+function MutedMarker({ id, onClick }: MarkerProps) {
+  const pose = useFleet((s) => s.robots[id]?.pose ?? null);
+  const online = useFleet((s) => s.robots[id]?.online ?? false);
+  if (!pose || !online) return null;
+  return (
+    <Marker
+      longitude={pose.lon}
+      latitude={pose.lat}
+      onClick={markerClick(id, onClick)}
+      className="hover:z-10"
+    >
+      <div className="group relative flex">
+        <div
+          title={id}
+          aria-label={id}
+          className={cn(
+            "flex h-3 w-3 items-center justify-center rounded-full border-[1.5px] border-white bg-[#64748B] text-[5px] font-bold leading-none text-white shadow-[0_1px_3px_rgba(0,0,0,0.35)]",
+            onClick && "cursor-pointer",
+          )}
+        >
+          {id.slice(-2)}
+        </div>
+        <span className="pointer-events-none invisible absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded border border-border bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-tight text-[#334155] shadow-[0_1px_3px_rgba(15,23,42,0.18)] group-hover:visible">
+          {id}
+        </span>
+      </div>
+    </Marker>
+  );
+}
+
+interface RobotsLayerProps {
+  /** Robots drawn in full while every other online robot is muted. Unset draws every robot in full. */
+  fullIds?: readonly string[];
+  /** The robot drawn with a ring and its position accuracy. */
+  highlightId?: string | null;
+  /** Without it the markers take no clicks, so a click on a robot still reaches the map. */
+  onRobotClick?: (id: string) => void;
+}
+
 // Each marker subscribes to its own robot, so a position update re-renders one marker and not the list.
-export function RobotsLayer() {
+export function RobotsLayer({
+  fullIds,
+  highlightId = null,
+  onRobotClick,
+}: RobotsLayerProps) {
   const ids = useFleet(
     useShallow((s) =>
       Object.values(s.robots)
@@ -140,10 +200,19 @@ export function RobotsLayer() {
   );
   return (
     <>
-      <AccuracyCircle />
-      {ids.map((id) => (
-        <RobotMarker key={id} id={id} />
-      ))}
+      {highlightId && <AccuracyCircle robotId={highlightId} />}
+      {ids.map((id) =>
+        !fullIds || fullIds.includes(id) ? (
+          <FullMarker
+            key={id}
+            id={id}
+            highlighted={id === highlightId}
+            onClick={onRobotClick}
+          />
+        ) : (
+          <MutedMarker key={id} id={id} onClick={onRobotClick} />
+        ),
+      )}
     </>
   );
 }

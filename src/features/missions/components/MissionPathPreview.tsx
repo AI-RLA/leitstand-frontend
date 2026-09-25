@@ -10,7 +10,7 @@ import type {
 } from "maplibre-gl";
 import type { FeatureCollection, LineString, Point } from "geojson";
 import { NO_FIELDS } from "@/api/fields";
-import { useFleet } from "@/stores/fleet";
+import { RobotsLayer } from "@/features/fleet/RobotsLayer";
 import { bboxOfPoints, fieldBbox } from "@/components/map/fieldUtils";
 import { FieldsLayer } from "@/components/map/FieldsLayer";
 import { FitBounds } from "@/components/map/FitBounds";
@@ -42,7 +42,7 @@ interface MissionPathPreviewProps {
   siteAnchors?: Record<string, RunSiteAnchor> | null;
   /** Boundaries the coverage stages were planned over, drawn under the path for comparison. */
   fields?: Field[];
-  /** The robot whose live pose to draw; null draws none. */
+  /** The robot drawn in full, every other online robot is drawn muted. */
   robotId?: string | null;
 }
 
@@ -263,17 +263,6 @@ const ENDPOINT_HIT_PAINT: CircleLayerSpecification["paint"] = {
 };
 // The label must never take the pointer from the endpoint it describes.
 const NO_POINTER = { pointerEvents: "none" } as const;
-const ROBOT_HALO_PAINT: CircleLayerSpecification["paint"] = {
-  "circle-radius": 16,
-  "circle-color": "#16A34A",
-  "circle-opacity": 0.2,
-};
-const ROBOT_DOT_PAINT: CircleLayerSpecification["paint"] = {
-  "circle-radius": 7,
-  "circle-color": "#16A34A",
-  "circle-stroke-color": "#fff",
-  "circle-stroke-width": 2.5,
-};
 
 interface HoveredEnd {
   role: "start" | "end";
@@ -340,35 +329,6 @@ function EndpointLabel() {
         <span>{hovered.role === "start" ? "Start" : "End"}</span>
       </div>
     </Marker>
-  );
-}
-
-// Subscribes on its own, so a pose update re-renders only the dot and not the whole map.
-function RobotDot({ robotId }: { robotId: string | null }) {
-  const pose = useFleet((s) =>
-    robotId ? (s.robots[robotId]?.pose ?? null) : null,
-  );
-  const data = useMemo<FeatureCollection<Point>>(
-    () => ({
-      type: "FeatureCollection",
-      features: pose
-        ? [
-            {
-              type: "Feature",
-              geometry: { type: "Point", coordinates: [pose.lon, pose.lat] },
-              properties: {},
-            },
-          ]
-        : [],
-    }),
-    [pose],
-  );
-
-  return (
-    <Source id="mp-robot" type="geojson" data={data}>
-      <Layer id="mp-robot-halo" type="circle" paint={ROBOT_HALO_PAINT} />
-      <Layer id="mp-robot-dot" type="circle" paint={ROBOT_DOT_PAINT} />
-    </Source>
   );
 }
 
@@ -489,7 +449,7 @@ export function MissionPathPreview({
             paint={ENDPOINT_HIT_PAINT}
           />
         </Source>
-        <RobotDot robotId={robotId} />
+        <RobotsLayer fullIds={robotId ? [robotId] : []} />
         <EndpointLabel />
         {/* Past zoom 19 both basemaps scale up their last tiles, which is soft but keeps a small field from shrinking to a stamp. */}
         <FitBounds
