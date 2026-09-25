@@ -1,6 +1,8 @@
 # leitstand-frontend
 
-Frontend for the leitstand fleet control center. Built with Vite,
+Operator interface of the Leitstand fleet control center for field robots. Operators follow the
+robots on a live map, define fields, sites and missions, dispatch missions and follow their runs,
+and work with an AI assistant whose proposed fleet changes wait for their approval. Built with Vite,
 React 19, TypeScript, Tailwind, and MapLibre GL.
 
 ## Prerequisites
@@ -60,12 +62,9 @@ See `.env.example`.
 | `VITE_API_BASE_URL` | `/api/v1` (Vite proxy) | Backend REST base URL |
 | `VITE_WS_URL`       | `/ws/v1` (Vite proxy)  | Backend WS URL        |
 
-The basemaps are not a build setting. They come from `public/config/map.json` at runtime. A
-deployment replaces them by mounting its own folder with a `map.json` over
-`/usr/share/nginx/html/config` (see the commented `volumes:` in `docker-compose.yaml`), and the dev
-server serves the file named by the shell variable `LEITSTAND_MAP_CONFIG_FILE` instead. The OSM
-Tile Usage Policy prohibits heavy production use of the public OSM tile servers, so a larger
-deployment points the file at its own tile service.
+The maps draw the application's data on top of a basemap, a street map or aerial imagery that
+operators select with the map's layer button. The basemaps are configured at runtime, not at build
+time, as documented in [docs/map-config.md](docs/map-config.md).
 
 **Production container** (`docker-compose.yaml` here; read by `docker compose` and nginx, not Vite):
 

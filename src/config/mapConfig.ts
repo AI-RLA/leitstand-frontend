@@ -116,7 +116,7 @@ function parseEntry(raw: unknown): BasemapEntry | string {
   if (scheme !== "xyz" && scheme !== "tms") {
     return 'scheme must be "xyz" or "tms"';
   }
-  if (typeof source.attribution !== "string") return "attribution missing";
+  if (!isNonEmptyString(source.attribution)) return "attribution missing";
 
   const hasTiles = source.tiles !== undefined;
   if (hasTiles === (source.wms !== undefined)) {
