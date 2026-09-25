@@ -23,7 +23,6 @@ import { SiteDetail } from "./features/sites/SiteDetail";
 import { SiteNew } from "./features/sites/SiteNew";
 import { setWorkerUrl } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { mapConfigReady } from "./config/mapConfig";
 import "./index.css";
 
 const rootRoute = createRootRoute({ component: RootLayout });
@@ -206,9 +205,6 @@ declare module "@tanstack/react-router" {
 
 // MapLibre cannot locate its worker inside a bundle, so the worker URL is set before any map exists.
 setWorkerUrl(maplibreWorkerUrl);
-
-// Maps build their basemap layers synchronously at mount, so the map config must be loaded first.
-await mapConfigReady;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

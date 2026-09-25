@@ -1,5 +1,6 @@
+import { use } from "react";
 import { create } from "zustand";
-import { getMapConfig, type BasemapEntry } from "@/config/mapConfig";
+import { mapConfigReady, type BasemapEntry } from "@/config/mapConfig";
 
 const KEY = "leitstand.mapLayers";
 const LEGACY_KEY = "leitstand.basemap";
@@ -74,8 +75,9 @@ function resolveBasemap(
   return entries[0] ?? null;
 }
 
+/** Suspends until the map config is loaded, so call it below a Suspense boundary. */
 export function useActiveBasemap() {
-  const { entries, rejected } = getMapConfig();
+  const { entries, rejected } = use(mapConfigReady);
   const saved = useMapLayers((s) => s.basemap);
   return { entries, rejected, active: resolveBasemap(saved, entries) };
 }

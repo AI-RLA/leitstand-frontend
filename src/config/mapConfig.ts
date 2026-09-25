@@ -219,15 +219,10 @@ async function load(): Promise<MapConfig> {
   }
 }
 
-let config: MapConfig | null = null;
-
-export const mapConfigReady: Promise<MapConfig> = load().then((c) => {
-  config = c;
-  if (c.rejected.length > 0) console.warn("[map.json]", c.rejected);
-  return c;
-});
-
-export function getMapConfig(): MapConfig {
-  if (!config) throw new Error("getMapConfig() called before mapConfigReady");
-  return config;
-}
+// Created once at startup and never rejected, so every map can read it with use() and no error boundary.
+export const mapConfigReady: Promise<MapConfig> = load()
+  .then((c) => {
+    if (c.rejected.length > 0) console.warn("[map.json]", c.rejected);
+    return c;
+  })
+  .catch(() => failed("map.json could not be loaded"));

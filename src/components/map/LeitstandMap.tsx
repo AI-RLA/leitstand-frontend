@@ -1,4 +1,6 @@
 import {
+  Suspense,
+  use,
   useCallback,
   useMemo,
   useState,
@@ -16,7 +18,9 @@ import {
 import { GPUInitializationError, type StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadMapView, saveMapView, type SavedMapView } from "@/stores/mapView";
+import { mapConfigReady } from "@/config/mapConfig";
 import { BasemapLayers } from "./BasemapLayers";
+import { BACKGROUND_PAINT } from "./layers/build";
 import { LayerControl } from "./LayerControl";
 import { MapInteractionContext, type MapInteraction } from "./mapInteraction";
 import { MapUnavailable } from "./MapUnavailable";
@@ -39,7 +43,21 @@ interface Props {
   ref?: Ref<MapRef>;
 }
 
-export function LeitstandMap({
+const LOADING_STYLE = {
+  position: "absolute",
+  inset: 0,
+  background: BACKGROUND_PAINT["background-color"],
+} as const;
+
+export function LeitstandMap(props: Props) {
+  return (
+    <Suspense fallback={<div style={LOADING_STYLE} />}>
+      <MapInner {...props} />
+    </Suspense>
+  );
+}
+
+function MapInner({
   view,
   children,
   navigation = {},
@@ -47,6 +65,8 @@ export function LeitstandMap({
   cursor,
   ref,
 }: Props) {
+  // Waits for the basemap list before the map exists, so its layers never mount without it.
+  use(mapConfigReady);
   const [initial] = useState(() =>
     view === "remembered" ? loadMapView() : view,
   );
