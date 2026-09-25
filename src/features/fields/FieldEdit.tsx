@@ -38,11 +38,7 @@ function FieldEditor({ field }: { field: Field }) {
   const navigate = useNavigate();
   const update = useUpdateField(field.id);
   const initialVertices = exteriorOf(field);
-  const fit = useMemo(
-    () =>
-      field.geometry.coordinates[0]?.length ? fieldBbox(field.geometry) : null,
-    [field],
-  );
+  const fit = useMemo(() => fieldBbox(field.geometry), [field]);
 
   return (
     <FieldPolygonEditor

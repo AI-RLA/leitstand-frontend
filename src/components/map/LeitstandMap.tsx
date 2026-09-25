@@ -23,8 +23,7 @@ import { useFields } from "@/api/fields";
 import { useRobots } from "@/api/robots";
 import { useSites } from "@/api/sites";
 import { mapConfigReady } from "@/config/mapConfig";
-import { BasemapLayers } from "./BasemapLayers";
-import { BACKGROUND_PAINT } from "./layers/build";
+import { BACKGROUND_COLOR, BasemapLayers } from "./BasemapLayers";
 import { LayerControl } from "./LayerControl";
 import { MapInteractionContext, type MapInteraction } from "./mapInteraction";
 import { MapUnavailable } from "./MapUnavailable";
@@ -64,7 +63,7 @@ const LOCATE_POSITION = {
 const LOADING_STYLE = {
   position: "absolute",
   inset: 0,
-  background: BACKGROUND_PAINT["background-color"],
+  background: BACKGROUND_COLOR,
 } as const;
 
 export function LeitstandMap(props: Props) {
@@ -116,10 +115,14 @@ function MapInner(props: Props) {
   // The map takes its opening view only at creation, so it is decided once and the lists stop here.
   const [opening, setOpening] = useState<OpeningView | null>(null);
   const ready = props.ready ?? true;
-  const resolving = opening === null && ready && !props.view;
-  const robots = useRobots({ enabled: resolving });
-  const fields = useFields({ enabled: resolving });
-  const sites = useSites({ enabled: resolving });
+  // The lists matter only until the view is decided, and not at all when a view is already known.
+  const lists = {
+    enabled: opening === null && ready && !props.view && !saved,
+    subscribed: opening === null,
+  };
+  const robots = useRobots(lists);
+  const fields = useFields(lists);
+  const sites = useSites(lists);
 
   if (opening === null) {
     const decided =
@@ -183,7 +186,7 @@ function MapCanvas({
         style={{ position: "absolute", inset: 0 }}
         onError={handleError}
         onClick={onClick}
-        interactiveLayerIds={hoverLayers}
+        interactiveLayerIds={hoverLayers.length > 0 ? hoverLayers : undefined}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
         cursor={cursor ?? (hovering ? "pointer" : "")}
@@ -202,6 +205,7 @@ function MapCanvas({
           <NavigationControl position="bottom-right" {...navigation} />
         )}
         {/* Browsers give a position only on HTTPS or localhost, so elsewhere the button could never work. */}
+        {/* In development React adds, removes and re-adds controls, and MapLibre's GeolocateControl then answers each click twice, so the button only seems dead under npm run dev. */}
         {window.isSecureContext && (
           <GeolocateControl
             position="bottom-right"

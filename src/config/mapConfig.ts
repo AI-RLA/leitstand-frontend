@@ -1,6 +1,6 @@
 import type { RasterSourceSpecification } from "maplibre-gl";
 
-export type Bounds = [number, number, number, number];
+type Bounds = [number, number, number, number];
 
 interface WmsSpec {
   url: string;

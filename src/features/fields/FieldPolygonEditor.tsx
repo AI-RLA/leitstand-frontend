@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ApiError } from "@/api/client";
+import { ApiError, apiErrorMessage } from "@/api/client";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
@@ -73,7 +73,7 @@ export function FieldPolygonEditor({
       });
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(`Server error ${err.status}: ${err.body}`);
+        setError(apiErrorMessage(err));
       } else {
         setError("Unexpected error — see console.");
         console.error(err);

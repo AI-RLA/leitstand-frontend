@@ -1,6 +1,6 @@
 import type * as maplibregl from "maplibre-gl";
 import type { CoverageStage } from "@/api/client";
-import { bboxOfPoints } from "@/components/map/fieldUtils";
+import { polygonFeature } from "@/components/map/fieldUtils";
 import { stageDrivenWaypoints } from "../stageWaypoints";
 import type * as GeoJSON from "geojson";
 
@@ -22,18 +22,7 @@ export function mainlandFeatures(
     features: stages.flatMap((stage) => {
       const mainland = stage.provenance.mainland_boundary;
       if (!mainland) return [];
-      return [
-        {
-          type: "Feature" as const,
-          // Rebuilt rather than passed through: the generated type allows a null bbox, which the
-          // GeoJSON types this map is written against do not.
-          geometry: {
-            type: "Polygon" as const,
-            coordinates: mainland.coordinates as GeoJSON.Position[][],
-          },
-          properties: {},
-        },
-      ];
+      return [polygonFeature(mainland.coordinates as number[][][])];
     }),
   };
 }
@@ -45,9 +34,3 @@ export const MAINLAND_PAINT: maplibregl.LineLayerSpecification["paint"] = {
   "line-width": 1.25,
   "line-opacity": 0.55,
 };
-
-export function coverageBounds(
-  lines: [number, number][][],
-): maplibregl.LngLatBoundsLike | null {
-  return bboxOfPoints(lines.flat());
-}

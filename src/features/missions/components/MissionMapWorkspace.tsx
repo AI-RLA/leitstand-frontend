@@ -13,7 +13,6 @@ import { RobotsLayer } from "@/features/fleet/RobotsLayer";
 import { useFleet } from "@/stores/fleet";
 import { anchorFromSite, localToLatLon } from "../siteFrame";
 import {
-  coverageBounds,
   coverageLines,
   mainlandFeatures,
   MAINLAND_PAINT,
@@ -136,7 +135,7 @@ function FitNewPlans({
     if (!map) return;
     const fresh = planned.filter((p) => !shown.current.has(p.stage_id));
     if (fresh.length === 0) return;
-    const bounds = coverageBounds(coverageLines(fresh));
+    const bounds = bboxOfPoints(coverageLines(fresh).flat());
     if (bounds)
       map.fitBounds(bounds, { padding: 40, duration: 300, maxZoom: 19 });
     for (const p of planned) shown.current.add(p.stage_id);

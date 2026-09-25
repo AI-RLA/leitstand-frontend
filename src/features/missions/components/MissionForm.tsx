@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useFields } from "@/api/fields";
+import { NO_FIELDS, useFields } from "@/api/fields";
 import { useRobots } from "@/api/robots";
 import { NO_SITES, useSites } from "@/api/sites";
 import type { Robot, StageInput } from "@/api/client";
@@ -125,7 +125,7 @@ export function MissionForm({
   onCancel,
 }: MissionFormProps) {
   const { data: sites = NO_SITES, isPending: sitesPending } = useSites();
-  const { data: fields = [] } = useFields();
+  const { data: fields = NO_FIELDS } = useFields();
   const { data: robots = [] } = useRobots();
 
   const [name, setName] = useState(initialName);
@@ -134,9 +134,12 @@ export function MissionForm({
   const [robotId, setRobotId] = useState<string | null>(initialRobotId);
 
   // The map shows robots from the live feed, which can know a robot before the robot list does.
-  function chooseRobot(id: string) {
-    if (robots.some((r) => r.id === id)) setRobotId(id);
-  }
+  const chooseRobot = useCallback(
+    (id: string) => {
+      if (robots.some((r) => r.id === id)) setRobotId(id);
+    },
+    [robots],
+  );
   const [addingIndex, setAddingIndex] = useState<number | null>(null);
 
   useEffect(() => {

@@ -5,9 +5,14 @@ import type {
   FillLayerSpecification,
   LineLayerSpecification,
 } from "maplibre-gl";
-import type { Feature, FeatureCollection, LineString, Point } from "geojson";
+import type { Feature, LineString, Point } from "geojson";
 import { headingEndpoint } from "@/lib/geo";
 import { FitBounds } from "@/components/map/FitBounds";
+import {
+  EMPTY_FC,
+  polygonFeature,
+  type LngLatBox,
+} from "@/components/map/fieldUtils";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
 import type { SiteViewModel } from "../adapters";
 
@@ -27,16 +32,12 @@ const HEADING_PAINT: LineLayerSpecification["paint"] = {
   "line-color": "#16A34A",
   "line-width": 3,
 };
+const ANCHOR_ZOOM = 17;
 const ANCHOR_PAINT: CircleLayerSpecification["paint"] = {
   "circle-radius": 7,
   "circle-color": "#16A34A",
   "circle-stroke-color": "#fff",
   "circle-stroke-width": 2,
-};
-
-const NO_OUTLINE: FeatureCollection = {
-  type: "FeatureCollection",
-  features: [],
 };
 
 export function SiteMiniMap({ vm }: SiteMiniMapProps) {
@@ -67,23 +68,12 @@ export function SiteMiniMap({ vm }: SiteMiniMapProps) {
   );
 
   const outlineData = useMemo(
-    () =>
-      outline
-        ? {
-            type: "Feature" as const,
-            // Rebuilt rather than passed through, because the generated type allows a null bbox.
-            geometry: {
-              type: "Polygon" as const,
-              coordinates: outline.coordinates,
-            },
-            properties: {},
-          }
-        : NO_OUTLINE,
+    () => (outline ? polygonFeature(outline.coordinates) : EMPTY_FC),
     [outline],
   );
 
   // A zero-size box fits at maxZoom, so a saved anchor or another site brings the map to it.
-  const anchorBounds = useMemo<[[number, number], [number, number]]>(
+  const anchorBounds = useMemo<LngLatBox>(
     () => [
       [anchorLon, anchorLat],
       [anchorLon, anchorLat],
@@ -94,7 +84,7 @@ export function SiteMiniMap({ vm }: SiteMiniMapProps) {
   return (
     <div className="relative h-[320px] rounded-lg overflow-hidden border border-border mb-3">
       <LeitstandMap
-        view={{ center: [anchorLon, anchorLat], zoom: 17 }}
+        view={{ center: [anchorLon, anchorLat], zoom: ANCHOR_ZOOM }}
         navigation={false}
       >
         <Source id="site-outline" type="geojson" data={outlineData}>
@@ -119,7 +109,7 @@ export function SiteMiniMap({ vm }: SiteMiniMapProps) {
           bounds={anchorBounds}
           fitKey={`${vm.id}:${anchorLon},${anchorLat}`}
           padding={0}
-          maxZoom={17}
+          maxZoom={ANCHOR_ZOOM}
           duration={0}
         />
       </LeitstandMap>

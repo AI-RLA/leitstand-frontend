@@ -5,7 +5,7 @@ export type DrawCursor = "grab" | "grabbing" | null;
 
 export const DOTS_LAYER = "draw-dots";
 
-export interface DrawCallbacks {
+interface DrawCallbacks {
   add: (v: Vertex) => void;
   move: (index: number, v: Vertex) => void;
   cursor: (c: DrawCursor) => void;

@@ -1,4 +1,4 @@
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useState, useSyncExternalStore } from "react";
 import * as maplibregl from "maplibre-gl";
 import { useMap } from "@vis.gl/react-maplibre";
 import { Check, Layers } from "lucide-react";
@@ -25,7 +25,8 @@ function coveredIds(map: maplibregl.Map | null, entries: BasemapEntry[]) {
     .join(" ");
 }
 
-export function LayerControl() {
+// Takes no props, so the map's re-renders on every page change never reach it.
+export const LayerControl = memo(function LayerControl() {
   const map = useMap().current?.getMap() ?? null;
   const { entries, rejected, active } = useActiveBasemap();
   const selectBasemap = useMapLayers((s) => s.selectBasemap);
@@ -139,4 +140,4 @@ export function LayerControl() {
       </div>
     </>
   );
-}
+});

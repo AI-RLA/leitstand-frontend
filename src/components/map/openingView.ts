@@ -42,7 +42,9 @@ export function resolveOpeningView({
   );
   if (robotBox) return { bounds: robotBox };
   if (!fields) return null;
-  const fieldBox = bboxOfPoints(fields.flatMap((f) => fieldBbox(f.geometry)));
+  const fieldBox = bboxOfPoints(
+    fields.flatMap((f) => fieldBbox(f.geometry) ?? []),
+  );
   if (fieldBox) return { bounds: fieldBox };
   if (!sites) return null;
   const siteBox = bboxOfPoints(sites.map((s) => [s.anchor_lon, s.anchor_lat]));

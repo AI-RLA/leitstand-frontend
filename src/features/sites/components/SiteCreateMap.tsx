@@ -10,6 +10,7 @@ import type { Feature, FeatureCollection, LineString } from "geojson";
 import { headingEndpoint } from "@/lib/geo";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
 import { FitBounds } from "@/components/map/FitBounds";
+import { EMPTY_FC } from "@/components/map/fieldUtils";
 import { DrawLayer, type Vertex } from "@/components/map/draw/DrawLayer";
 
 export type SiteCreateStep =
@@ -34,11 +35,6 @@ const HEADING_PAINT: LineLayerSpecification["paint"] = {
   "line-width": 3,
 };
 
-const NO_HEADING: FeatureCollection = {
-  type: "FeatureCollection",
-  features: [],
-};
-
 export function SiteCreateMap({
   step,
   anchor,
@@ -50,7 +46,7 @@ export function SiteCreateMap({
   const [drawCursor, setDrawCursor] = useState("crosshair");
 
   const headingLine = useMemo<Feature<LineString> | FeatureCollection>(() => {
-    if (!anchor) return NO_HEADING;
+    if (!anchor) return EMPTY_FC;
     const endpoint = headingEndpoint(anchor.lat, anchor.lon, heading, 14);
     return {
       type: "Feature",

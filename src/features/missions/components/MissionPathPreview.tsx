@@ -187,10 +187,12 @@ function boundsOf(paths: StagePath[], fields: Field[]): LngLatBox | null {
   // fitting the path alone would show a plausible-looking route and no field at all.
   return bboxOfPoints([
     ...paths.flatMap((p) => p.line),
-    ...fields.flatMap((f) => fieldBbox(f.geometry)),
+    ...fields.flatMap((f) => fieldBbox(f.geometry) ?? []),
   ]);
 }
 
+// Past zoom 19 both basemaps scale up their last tiles, which is soft but keeps a small field from shrinking to a stamp.
+const PATH_FIT = { padding: 30, maxZoom: 20 } as const;
 const ROUND = { "line-cap": "round", "line-join": "round" } as const;
 // A line has no stroke of its own, and orthophotos give a thin one nothing to read against. A soft
 // wider line beneath separates it from grass, tarmac and shadow alike.
@@ -396,7 +398,7 @@ export function MissionPathPreview({
     <div className="relative h-full w-full rounded-lg overflow-hidden border border-border">
       <LeitstandMap
         navigation={{ showCompass: false }}
-        view={bounds ? { bounds, padding: 30, maxZoom: 20 } : undefined}
+        view={bounds ? { bounds, ...PATH_FIT } : undefined}
         ready={fitKey !== null}
       >
         <FieldsLayer fields={fields} />
@@ -452,13 +454,12 @@ export function MissionPathPreview({
         </Source>
         <RobotsLayer fullIds={robotId ? [robotId] : []} />
         <EndpointLabel />
-        {/* Past zoom 19 both basemaps scale up their last tiles, which is soft but keeps a small field from shrinking to a stamp. */}
         {/* Opens on the content, and fits again only when the page switches to another mission or run. */}
         <FitBounds
           bounds={bounds}
           fitKey={fitKey}
-          padding={30}
-          maxZoom={20}
+          padding={PATH_FIT.padding}
+          maxZoom={PATH_FIT.maxZoom}
           duration={0}
         />
       </LeitstandMap>

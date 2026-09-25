@@ -22,9 +22,27 @@ export function bboxOfPoints(points: Iterable<number[]>): LngLatBox | null {
   ];
 }
 
-export function fieldBbox(geometry: { coordinates: number[][][] }): LngLatBox {
-  // A polygon has at least one ring with points, so the box is never null.
-  return bboxOfPoints(geometry.coordinates[0])!;
+/** The box around a polygon's outer ring, or null for a ring without points. */
+export function fieldBbox(geometry: {
+  coordinates: number[][][];
+}): LngLatBox | null {
+  return bboxOfPoints(geometry.coordinates[0] ?? []);
+}
+
+export const EMPTY_FC: GeoJSON.FeatureCollection = {
+  type: "FeatureCollection",
+  features: [],
+};
+
+/** A GeoJSON polygon feature, rebuilt because the generated API type allows a null bbox. */
+export function polygonFeature(
+  coordinates: number[][][],
+): GeoJSON.Feature<GeoJSON.Polygon> {
+  return {
+    type: "Feature",
+    geometry: { type: "Polygon", coordinates },
+    properties: {},
+  };
 }
 
 export function toFieldGeoJSON(fields: Field[]): GeoJSON.FeatureCollection {
