@@ -1,16 +1,10 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import * as maplibregl from "maplibre-gl";
 import { useMap } from "@vis.gl/react-maplibre";
 import { Check, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BasemapEntry } from "@/config/mapConfig";
-import { showBasemap } from "./layers/build";
 import { useActiveBasemap, useMapLayers } from "@/stores/mapLayers";
-
-interface Props {
-  // Only pages not yet on LeitstandMap pass their map, inside it the map comes from the context.
-  map?: maplibregl.Map | null;
-}
 
 function tooltip(e: BasemapEntry): string {
   const coverage = e.source.bounds ? "regional" : "worldwide";
@@ -31,9 +25,8 @@ function coveredIds(map: maplibregl.Map | null, entries: BasemapEntry[]) {
     .join(" ");
 }
 
-export function LayerControl({ map: legacyMap }: Props) {
-  const contextMap = useMap().current?.getMap();
-  const map = legacyMap ?? contextMap ?? null;
+export function LayerControl() {
+  const map = useMap().current?.getMap() ?? null;
   const { entries, rejected, active } = useActiveBasemap();
   const selectBasemap = useMapLayers((s) => s.selectBasemap);
   const activeId = active?.id ?? null;
@@ -52,10 +45,6 @@ export function LayerControl({ map: legacyMap }: Props) {
     coveredIds(map, entries),
   ).split(" ");
   const covers = (e: BasemapEntry) => !map || covered.includes(e.id);
-
-  useEffect(() => {
-    if (legacyMap) showBasemap(legacyMap, entries, activeId);
-  }, [legacyMap, entries, activeId]);
 
   return (
     <>

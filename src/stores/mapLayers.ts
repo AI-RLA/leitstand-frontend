@@ -61,7 +61,7 @@ export const useMapLayers = create<MapLayersState>((set) => ({
   },
 }));
 
-export function resolveBasemap(
+function resolveBasemap(
   saved: SavedBasemap,
   entries: BasemapEntry[],
 ): BasemapEntry | null {

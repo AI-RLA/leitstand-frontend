@@ -10,6 +10,7 @@ export function BasemapLayers() {
   const { entries, active } = useActiveBasemap();
   return (
     <>
+      {/* The background comes first because MapLibre requests nothing outside a source's bounds. */}
       <Layer id={BACKGROUND_ID} type="background" paint={BACKGROUND_PAINT} />
       {entries.map((e) => (
         <Source key={e.id} id={layerId(e.id)} {...e.source}>
