@@ -54,6 +54,12 @@ interface Props {
 // Past this zoom a single robot or the operator's own position leaves too little around it to orient by.
 const LOCATE_FIT = { maxZoom: 17 } as const;
 const OPENING_FIT = { ...LOCATE_FIT, padding: 40 } as const;
+// An operator on the field needs the GPS fix of a tablet, which takes longer than a network guess.
+const LOCATE_POSITION = {
+  enableHighAccuracy: true,
+  maximumAge: 0,
+  timeout: 10_000,
+} as const;
 
 const LOADING_STYLE = {
   position: "absolute",
@@ -199,6 +205,8 @@ function MapCanvas({
         {window.isSecureContext && (
           <GeolocateControl
             position="bottom-right"
+            trackUserLocation
+            positionOptions={LOCATE_POSITION}
             fitBoundsOptions={LOCATE_FIT}
           />
         )}
