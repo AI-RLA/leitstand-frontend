@@ -7,6 +7,7 @@ interface Props {
   fitKey: unknown;
   padding?: number;
   maxZoom?: number;
+  duration?: number;
 }
 
 // Fits once per fitKey, so new data for the same key does not move a map the operator has panned.
@@ -15,6 +16,7 @@ export function FitBounds({
   fitKey,
   padding = 80,
   maxZoom = 19,
+  duration = 600,
 }: Props) {
   const map = useMap().current;
   const fitted = useRef<unknown>(null);
@@ -26,8 +28,8 @@ export function FitBounds({
     }
     if (!map || !bounds || fitted.current === fitKey) return;
     fitted.current = fitKey;
-    map.fitBounds(bounds, { padding, maxZoom, duration: 600 });
-  }, [map, bounds, fitKey, padding, maxZoom]);
+    map.fitBounds(bounds, { padding, maxZoom, duration });
+  }, [map, bounds, fitKey, padding, maxZoom, duration]);
 
   return null;
 }

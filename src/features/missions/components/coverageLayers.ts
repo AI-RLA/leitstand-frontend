@@ -46,13 +46,6 @@ export const MAINLAND_PAINT: maplibregl.LineLayerSpecification["paint"] = {
   "line-opacity": 0.55,
 };
 
-export function mainlandLayer(
-  id: string,
-  source: string,
-): maplibregl.LayerSpecification {
-  return { id, type: "line", source, paint: MAINLAND_PAINT };
-}
-
 export function coverageBounds(
   lines: [number, number][][],
 ): maplibregl.LngLatBoundsLike | null {

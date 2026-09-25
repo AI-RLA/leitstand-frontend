@@ -3,8 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { useCloseMissionRun, useMission } from "@/api/missions";
 import { useAnnotateRun, useRun, useRunState } from "@/api/runs";
-import { useSites } from "@/api/sites";
-import { useFields } from "@/api/fields";
+import { NO_SITES, useSites } from "@/api/sites";
+import { NO_FIELDS, useFields } from "@/api/fields";
 import { useRobots } from "@/api/robots";
 import { apiErrorMessage } from "@/api/client";
 import { useArmed } from "@/lib/useArmed";
@@ -16,7 +16,6 @@ import { MissionPathPreview } from "./components/MissionPathPreview";
 import { MissionStageTimeline } from "./components/MissionStageTimeline";
 import { RunHeader } from "./components/RunHeader";
 import { RunStatusLine } from "./components/RunStatusLine";
-import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 
 interface Props {
   missionId: string;
@@ -40,8 +39,8 @@ export function RunDetail({ missionId, runId }: Props) {
   const active = isActiveStatus(run?.status);
   const now = useNowTick(1000, active);
   const { data: robots = [] } = useRobots();
-  const { data: sites = [] } = useSites();
-  const { data: fields = [] } = useFields();
+  const { data: sites = NO_SITES, isPending: sitesPending } = useSites();
+  const { data: fields = NO_FIELDS, isPending: fieldsPending } = useFields();
   const live = useMissionState(active ? missionId : null, runId);
   // REST /state is the durable per-stage source for a run that is not active, because the WS
   // latch is in-process and does not survive a backend restart.
@@ -208,17 +207,15 @@ export function RunDetail({ missionId, runId }: Props) {
         </div>
         <div className="flex-[2] basis-[28rem] min-w-0 flex [@container(max-width:53.5rem)]:order-first">
           <div className="flex-1 h-[60vh] min-h-[20rem] sticky top-0 [@container(min-width:53.5rem)]:h-full">
-            <MapErrorBoundary>
-              <MissionPathPreview
-                stages={run.stages}
-                fitKey={run.run_id}
-                state={state}
-                sites={sites}
-                siteAnchors={run.site_anchors}
-                fields={coverageFields}
-                robotId={active ? run.robot_id : null}
-              />
-            </MapErrorBoundary>
+            <MissionPathPreview
+              stages={run.stages}
+              fitKey={sitesPending || fieldsPending ? null : run.run_id}
+              state={state}
+              sites={sites}
+              siteAnchors={run.site_anchors}
+              fields={coverageFields}
+              robotId={active ? run.robot_id : null}
+            />
           </div>
         </div>
       </div>
