@@ -5,13 +5,16 @@ import type {
   ExpressionSpecification,
   FilterSpecification,
   LineLayerSpecification,
-  LngLatBoundsLike,
   MapLayerMouseEvent,
 } from "maplibre-gl";
 import type { FeatureCollection, LineString, Point } from "geojson";
 import { NO_FIELDS } from "@/api/fields";
 import { RobotsLayer } from "@/features/fleet/RobotsLayer";
-import { bboxOfPoints, fieldBbox } from "@/components/map/fieldUtils";
+import {
+  bboxOfPoints,
+  fieldBbox,
+  type LngLatBox,
+} from "@/components/map/fieldUtils";
 import { FieldsLayer } from "@/components/map/FieldsLayer";
 import { FitBounds } from "@/components/map/FitBounds";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
@@ -178,10 +181,7 @@ function endpointKeys(paths: StagePath[]): {
   return { start, end: end === start ? null : end };
 }
 
-function boundsOf(
-  paths: StagePath[],
-  fields: Field[],
-): LngLatBoundsLike | null {
+function boundsOf(paths: StagePath[], fields: Field[]): LngLatBox | null {
   // Framing both together is what makes a misplaced path visible: a path drawn far from the field
   // it claims to cover zooms the view out until the gap is the obvious thing on screen, where
   // fitting the path alone would show a plausible-looking route and no field at all.
@@ -395,8 +395,9 @@ export function MissionPathPreview({
   return (
     <div className="relative h-full w-full rounded-lg overflow-hidden border border-border">
       <LeitstandMap
-        view={{ center: [8.020798, 52.286366], zoom: 15 }}
         navigation={{ showCompass: false }}
+        view={bounds ? { bounds, padding: 30, maxZoom: 20 } : undefined}
+        ready={fitKey !== null}
       >
         <FieldsLayer fields={fields} />
         <Source id="mp-mainland" type="geojson" data={mainland}>
@@ -452,6 +453,7 @@ export function MissionPathPreview({
         <RobotsLayer fullIds={robotId ? [robotId] : []} />
         <EndpointLabel />
         {/* Past zoom 19 both basemaps scale up their last tiles, which is soft but keeps a small field from shrinking to a stamp. */}
+        {/* Opens on the content, and fits again only when the page switches to another mission or run. */}
         <FitBounds
           bounds={bounds}
           fitKey={fitKey}

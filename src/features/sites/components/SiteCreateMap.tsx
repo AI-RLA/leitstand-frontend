@@ -83,7 +83,6 @@ export function SiteCreateMap({
 
   return (
     <LeitstandMap
-      view={{ center: [8.020798, 52.286366], zoom: 17 }}
       cursor={cursor}
       onClick={
         step === "place-anchor"

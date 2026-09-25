@@ -16,8 +16,14 @@ export interface BasemapEntry {
   source: RasterSourceSpecification;
 }
 
+export interface MapView {
+  center: [number, number];
+  zoom: number;
+}
+
 export interface MapConfig {
   entries: BasemapEntry[];
+  home: MapView | null;
   rejected: string[];
 }
 
@@ -26,6 +32,7 @@ const TIMEOUT_MS = 5000;
 
 const failed = (reason: string): MapConfig => ({
   entries: [],
+  home: null,
   rejected: [reason],
 });
 
@@ -60,6 +67,8 @@ const SOURCE_KEYS = new Set([
   "attribution",
 ]);
 const WMS_KEYS = new Set(["url", "layers", "format"]);
+const HOME_KEYS = new Set(["center", "zoom"]);
+const TOP_KEYS = new Set(["version", "home", "basemaps"]);
 
 // Unknown fields are refused rather than dropped, so a typo shows in the picker.
 function unknownKey(o: Record<string, unknown>, known: Set<string>) {
@@ -86,6 +95,24 @@ function parseBounds(v: unknown): Bounds | string {
   const [w, s, e, n] = v as Bounds;
   if (w >= e || s >= n) return "bounds must be west, south, east, north";
   return v as Bounds;
+}
+
+function parseHome(v: unknown): MapView | string {
+  if (!isObject(v)) return "home must be an object";
+  const extra = unknownKey(v, HOME_KEYS);
+  if (extra) return `unknown home field ${extra}`;
+  const { center, zoom } = v;
+  if (
+    !Array.isArray(center) ||
+    center.length !== 2 ||
+    !center.every(isFiniteNumber) ||
+    Math.abs(center[0]) > 180 ||
+    Math.abs(center[1]) > 90
+  ) {
+    return "home.center must be [longitude, latitude]";
+  }
+  if (!isZoom(zoom)) return "home.zoom must be a number from 0 to 24";
+  return { center: [center[0], center[1]], zoom };
 }
 
 function parseEntry(raw: unknown): BasemapEntry | string {
@@ -184,6 +211,8 @@ export function parse(json: unknown): MapConfig {
   const entries: BasemapEntry[] = [];
   const rejected: string[] = [];
   const seen = new Set<string>();
+  const extraTop = unknownKey(json, TOP_KEYS);
+  if (extraTop) rejected.push(`unknown field ${extraTop}`);
   json.basemaps.forEach((raw, i) => {
     const name =
       isObject(raw) && isNonEmptyString(raw.id) ? raw.id : `entry ${i + 1}`;
@@ -195,7 +224,13 @@ export function parse(json: unknown): MapConfig {
       entries.push(result);
     }
   });
-  return { entries, rejected };
+  let home: MapView | null = null;
+  if (json.home !== undefined) {
+    const parsed = parseHome(json.home);
+    if (typeof parsed === "string") rejected.push(parsed);
+    else home = parsed;
+  }
+  return { entries, home, rejected };
 }
 
 async function load(): Promise<MapConfig> {

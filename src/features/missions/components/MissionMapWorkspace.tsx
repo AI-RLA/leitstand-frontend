@@ -7,10 +7,10 @@ import type {
 } from "maplibre-gl";
 import type { FeatureCollection, LineString, Point } from "geojson";
 import { X, Crosshair } from "lucide-react";
-import { FitBounds } from "@/components/map/FitBounds";
 import { bboxOfPoints } from "@/components/map/fieldUtils";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
 import { RobotsLayer } from "@/features/fleet/RobotsLayer";
+import { useFleet } from "@/stores/fleet";
 import { anchorFromSite, localToLatLon } from "../siteFrame";
 import {
   coverageBounds,
@@ -145,6 +145,35 @@ function FitNewPlans({
   return null;
 }
 
+// Brings a newly chosen robot into view while the mission has nothing on the map yet.
+function BringRobotIntoView({
+  robotId,
+  sitesReady,
+  empty,
+}: {
+  robotId: string | null;
+  sitesReady: boolean;
+  empty: boolean;
+}) {
+  const map = useMap().current;
+  const handled = useRef<string | null>(null);
+
+  // A choice waits while the sites load, and is spent once seen, so later edits never fly the map.
+  useEffect(() => {
+    if (!sitesReady || robotId === handled.current) return;
+    handled.current = robotId;
+    if (!map || !empty || !robotId) return;
+    const pose = useFleet.getState().robots[robotId]?.pose;
+    if (!pose || map.getBounds().contains([pose.lon, pose.lat])) return;
+    map.flyTo({
+      center: [pose.lon, pose.lat],
+      zoom: Math.max(map.getZoom(), 16),
+    });
+  }, [map, robotId, sitesReady, empty]);
+
+  return null;
+}
+
 export function MissionMapWorkspace({
   stages,
   sites,
@@ -208,11 +237,18 @@ export function MissionMapWorkspace({
     };
     return { coverage, mainland: mainlandFeatures(planned) };
   }, [planned]);
+  const empty =
+    waypoints.features.length === 0 && coverage.features.length === 0;
 
   return (
     <div className="relative h-full w-full">
       <LeitstandMap
-        view={{ center: [8.020798, 52.286366], zoom: 14 }}
+        view={
+          openingBounds
+            ? { bounds: openingBounds, padding: 40, maxZoom: 19 }
+            : undefined
+        }
+        ready={opening.length === 0 || sitesReady}
         cursor={addingIndex !== null ? "crosshair" : undefined}
         onClick={(e) => onMapClick(e.lngLat.lat, e.lngLat.lng)}
       >
@@ -261,12 +297,12 @@ export function MissionMapWorkspace({
             paint={WAYPOINT_FOCUSED_PAINT}
           />
         </Source>
-        <FitBounds
-          bounds={openingBounds}
-          fitKey={opening.length > 0 && sitesReady ? "opening" : null}
-          padding={40}
-        />
         <FitNewPlans planned={planned} initial={openingPlans} />
+        <BringRobotIntoView
+          robotId={robotId}
+          sitesReady={sitesReady}
+          empty={empty}
+        />
         <RobotsLayer
           fullIds={robotId ? [robotId] : []}
           // While adding waypoints a click on a robot places the waypoint there instead.

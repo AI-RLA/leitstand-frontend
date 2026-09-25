@@ -17,7 +17,7 @@ export function FieldsMap({ selectedFieldId }: Props) {
     navigate({ to: "/fields/$id", params: { id: field.id } });
 
   return (
-    <LeitstandMap view="remembered">
+    <LeitstandMap rememberView>
       <FieldsLayer
         fields={fields}
         selectedId={selectedFieldId}

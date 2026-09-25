@@ -1,12 +1,7 @@
+import type { MapView } from "@/config/mapConfig";
 const KEY = "leitstand.mapView";
-export interface SavedMapView {
-  center: [number, number];
-  zoom: number;
-}
 
-const DEFAULT: SavedMapView = { center: [8.020798, 52.286366], zoom: 17 };
-
-function isMapView(v: unknown): v is SavedMapView {
+function isMapView(v: unknown): v is MapView {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
   return (
@@ -18,7 +13,7 @@ function isMapView(v: unknown): v is SavedMapView {
   );
 }
 
-export function loadMapView(): SavedMapView {
+export function loadMapView(): MapView | null {
   try {
     const raw = sessionStorage.getItem(KEY);
     if (raw) {
@@ -28,7 +23,7 @@ export function loadMapView(): SavedMapView {
   } catch {
     // sessionStorage / localStorage may be unavailable (private browsing, quota)
   }
-  return DEFAULT;
+  return null;
 }
 
 export function saveMapView(center: [number, number], zoom: number): void {

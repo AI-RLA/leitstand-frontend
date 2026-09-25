@@ -74,7 +74,7 @@ export function FleetMap() {
   }
 
   return (
-    <LeitstandMap view="remembered" onClick={onMapClick}>
+    <LeitstandMap rememberView onClick={onMapClick}>
       <FieldsLayer
         fields={fields}
         selectedId={selectedFieldId}

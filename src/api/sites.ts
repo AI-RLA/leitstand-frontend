@@ -7,8 +7,12 @@ export const siteKey = (id: string) => ["sites", id] as const;
 // A shared empty list, so consumers do not see a new array identity on every render while loading.
 export const NO_SITES: Site[] = [];
 
-export function useSites() {
-  return useQuery({ queryKey: SITES_KEY, queryFn: api.listSites });
+export function useSites(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: SITES_KEY,
+    queryFn: api.listSites,
+    enabled: options?.enabled,
+  });
 }
 
 export function useSite(id: string, options?: { enabled?: boolean }) {

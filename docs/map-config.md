@@ -25,8 +25,8 @@ version control.
 
 ## Schema
 
-The document has the form `{ "version": 1, "basemaps": [ ... ] }`. Each entry of `basemaps`
-supports the following fields.
+The document has the form `{ "version": 1, "home": { ... }, "basemaps": [ ... ] }`. Each entry
+of `basemaps` supports the following fields.
 
 | Field                | Required       | Default | Description                                                                                                                                                 |
 | -------------------- | -------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -40,9 +40,18 @@ supports the following fields.
 | `source.tileSize`    | no             | `256`   | Tile size in pixels, `256` or `512`. For a WMS, `512` reduces the number of requests by a factor of four.                                                   |
 | `source.minzoom`     | no             | `0`     | Lowest zoom level served.                                                                                                                                   |
 | `source.maxzoom`     | yes            |         | Highest zoom level served. Beyond it, the map scales the tiles of this level.                                                                               |
-| `source.bounds`      | no             |         | Extent as `[west, south, east, north]`. No tiles are requested outside it, and the picker marks the entry as unavailable while the map centre lies outside. |
+| `source.bounds`      | no             |         | Extent as `[west, south, east, north]`. No tiles are requested outside it, and the picker marks the entry as unavailable while the map center lies outside. |
 | `source.scheme`      | no             | `xyz`   | Tile numbering, `xyz` or `tms`.                                                                                                                             |
 | `source.attribution` | yes            |         | Attribution required by the licence, displayed in full while the basemap is active.                                                                         |
+
+## Opening view
+
+A map without its own content to show opens on the first of the following that exists: the view
+last left on the fleet or fields map in this browser tab, the robots that report a position
+(online robots first), the fields, the site anchors, `home`, and otherwise all of Germany. The
+optional top-level `home` is `{ "center": [longitude, latitude], "zoom": 17 }`, typically the
+deployment's farm. The shipped file defines none. A page whose own content is still loading, such as
+a mission or a field, waits for it and opens directly on it instead.
 
 ## Validation
 

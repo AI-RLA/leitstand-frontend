@@ -3,7 +3,6 @@ import { ApiError } from "@/api/client";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
-import { FitBounds } from "@/components/map/FitBounds";
 import type { LngLatBox } from "@/components/map/fieldUtils";
 import { DrawLayer, type Vertex } from "@/components/map/draw/DrawLayer";
 
@@ -156,8 +155,8 @@ export function FieldPolygonEditor({
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative">
           <LeitstandMap
-            view={{ center: [8.020798, 52.286366], zoom: 14 }}
             cursor={cursor}
+            view={fit ? { bounds: fit, padding: 80, maxZoom: 19 } : undefined}
           >
             <DrawLayer
               vertices={verts}
@@ -165,7 +164,6 @@ export function FieldPolygonEditor({
               enabled={stage === "drawing"}
               onCursor={setCursor}
             />
-            {fit && <FitBounds bounds={fit} fitKey="initial" />}
           </LeitstandMap>
         </div>
 
