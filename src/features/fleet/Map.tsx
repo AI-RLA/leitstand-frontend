@@ -5,8 +5,7 @@ import { NO_FIELDS, useFields } from "@/api/fields";
 import type { Field } from "@/api/client";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
 import { FieldsLayer } from "@/components/map/FieldsLayer";
-import { FitBounds } from "@/components/map/FitBounds";
-import { useFieldBounds } from "@/components/map/useFieldBounds";
+import { useFieldView } from "@/components/map/useFieldView";
 import { RobotsLayer } from "./RobotsLayer";
 import { FieldPopupCard } from "./FieldPopupCard";
 
@@ -32,7 +31,7 @@ export function FleetMap() {
   const selectedRobotId = useFleet((s) => s.selectedId);
   const [popup, setPopup] = useState<FieldPopupAt | null>(null);
 
-  const bounds = useFieldBounds(fields, selectedFieldId);
+  const fieldView = useFieldView(fields, selectedFieldId);
 
   // A popup belongs to one selection, so it goes as soon as the selection changes elsewhere (the sidebar, a robot).
   if (popup && popup.fieldId !== selectedFieldId) setPopup(null);
@@ -74,13 +73,17 @@ export function FleetMap() {
   }
 
   return (
-    <LeitstandMap rememberView onClick={onMapClick}>
+    <LeitstandMap
+      rememberView
+      view={fieldView}
+      viewKey={selectedFieldId}
+      onClick={onMapClick}
+    >
       <FieldsLayer
         fields={fields}
         selectedId={selectedFieldId}
         onClick={onFieldClick}
       />
-      <FitBounds bounds={bounds} fitKey={selectedFieldId} />
       <RobotsLayer highlightId={selectedRobotId} onRobotClick={toggleRobot} />
       <FlyToRobot />
       {popup && popupField && (

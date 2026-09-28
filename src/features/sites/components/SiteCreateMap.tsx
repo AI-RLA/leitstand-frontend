@@ -9,7 +9,6 @@ import type { LineLayerSpecification } from "maplibre-gl";
 import type { Feature, FeatureCollection, LineString } from "geojson";
 import { headingEndpoint } from "@/lib/geo";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
-import { FitBounds } from "@/components/map/FitBounds";
 import { EMPTY_FC } from "@/components/map/fieldUtils";
 import { DrawLayer, type Vertex } from "@/components/map/draw/DrawLayer";
 
@@ -30,6 +29,8 @@ interface SiteCreateMapProps {
   onOutlineChange: Dispatch<SetStateAction<Vertex[]>>;
 }
 
+// Close enough to place the anchor on a single row or post.
+const ANCHOR_ZOOM = 18;
 const HEADING_PAINT: LineLayerSpecification["paint"] = {
   "line-color": "#16A34A",
   "line-width": 3,
@@ -58,18 +59,6 @@ export function SiteCreateMap({
     };
   }, [anchor, heading]);
 
-  // A zero-size box fits at maxZoom, so the first anchor brings the map to it at zoom 18.
-  const anchorBounds = useMemo<[Vertex, Vertex] | null>(
-    () =>
-      anchor
-        ? [
-            [anchor.lon, anchor.lat],
-            [anchor.lon, anchor.lat],
-          ]
-        : null,
-    [anchor],
-  );
-
   const cursor =
     step === "trace-outline"
       ? drawCursor
@@ -79,6 +68,12 @@ export function SiteCreateMap({
 
   return (
     <LeitstandMap
+      view={
+        anchor
+          ? { center: [anchor.lon, anchor.lat], zoom: ANCHOR_ZOOM }
+          : undefined
+      }
+      viewKey={anchor ? "anchor" : null}
       cursor={cursor}
       onClick={
         step === "place-anchor"
@@ -109,12 +104,6 @@ export function SiteCreateMap({
           <div className="h-[18px] w-[18px] cursor-grab rounded-full border-[3px] border-white bg-[#16A34A] shadow-[0_1px_3px_rgba(0,0,0,0.3)]" />
         </Marker>
       )}
-      <FitBounds
-        bounds={anchorBounds}
-        fitKey={anchor ? "anchor" : null}
-        padding={0}
-        maxZoom={18}
-      />
     </LeitstandMap>
   );
 }

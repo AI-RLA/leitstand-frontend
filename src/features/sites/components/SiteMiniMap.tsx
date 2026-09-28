@@ -7,12 +7,7 @@ import type {
 } from "maplibre-gl";
 import type { Feature, LineString, Point } from "geojson";
 import { headingEndpoint } from "@/lib/geo";
-import { FitBounds } from "@/components/map/FitBounds";
-import {
-  EMPTY_FC,
-  polygonFeature,
-  type LngLatBox,
-} from "@/components/map/fieldUtils";
+import { EMPTY_FC, polygonFeature } from "@/components/map/fieldUtils";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
 import type { SiteViewModel } from "../adapters";
 
@@ -72,19 +67,12 @@ export function SiteMiniMap({ vm }: SiteMiniMapProps) {
     [outline],
   );
 
-  // A zero-size box fits at maxZoom, so a saved anchor or another site brings the map to it.
-  const anchorBounds = useMemo<LngLatBox>(
-    () => [
-      [anchorLon, anchorLat],
-      [anchorLon, anchorLat],
-    ],
-    [anchorLat, anchorLon],
-  );
-
   return (
     <div className="relative h-[320px] rounded-lg overflow-hidden border border-border mb-3">
       <LeitstandMap
         view={{ center: [anchorLon, anchorLat], zoom: ANCHOR_ZOOM }}
+        viewKey={`${vm.id}:${anchorLon},${anchorLat}`}
+        viewDuration={0}
         navigation={false}
       >
         <Source id="site-outline" type="geojson" data={outlineData}>
@@ -105,13 +93,6 @@ export function SiteMiniMap({ vm }: SiteMiniMapProps) {
         <Source id="site-anchor" type="geojson" data={anchor}>
           <Layer id="site-anchor-dot" type="circle" paint={ANCHOR_PAINT} />
         </Source>
-        <FitBounds
-          bounds={anchorBounds}
-          fitKey={`${vm.id}:${anchorLon},${anchorLat}`}
-          padding={0}
-          maxZoom={ANCHOR_ZOOM}
-          duration={0}
-        />
       </LeitstandMap>
     </div>
   );

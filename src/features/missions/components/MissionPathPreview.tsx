@@ -16,7 +16,6 @@ import {
   type LngLatBox,
 } from "@/components/map/fieldUtils";
 import { FieldsLayer } from "@/components/map/FieldsLayer";
-import { FitBounds } from "@/components/map/FitBounds";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
 import { anchorFromSite, localToLatLon, type SiteAnchor } from "../siteFrame";
 import { MAINLAND_PAINT, mainlandFeatures } from "./coverageLayers";
@@ -399,6 +398,8 @@ export function MissionPathPreview({
       <LeitstandMap
         navigation={{ showCompass: false }}
         view={bounds ? { bounds, ...PATH_FIT } : undefined}
+        viewKey={fitKey}
+        viewDuration={0}
         ready={fitKey !== null}
       >
         <FieldsLayer fields={fields} />
@@ -454,14 +455,6 @@ export function MissionPathPreview({
         </Source>
         <RobotsLayer fullIds={robotId ? [robotId] : []} />
         <EndpointLabel />
-        {/* Opens on the content, and fits again only when the page switches to another mission or run. */}
-        <FitBounds
-          bounds={bounds}
-          fitKey={fitKey}
-          padding={PATH_FIT.padding}
-          maxZoom={PATH_FIT.maxZoom}
-          duration={0}
-        />
       </LeitstandMap>
     </div>
   );

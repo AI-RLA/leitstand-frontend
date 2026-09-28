@@ -2,7 +2,9 @@ import {
   Suspense,
   use,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
   type Ref,
@@ -12,6 +14,7 @@ import {
   GeolocateControl,
   Map,
   NavigationControl,
+  useMap,
   type ErrorEvent,
   type MapLayerMouseEvent,
   type MapRef,
@@ -37,8 +40,12 @@ const MAPLIBRE_CREDIT =
   '<a href="https://maplibre.org/" target="_blank">MapLibre</a>';
 
 interface Props {
-  /** The opening view, usually the page's own content. Without it the map opens where resolveOpeningView finds something to show. */
+  /** Where the map looks, usually the page's own content. Without it the map opens where resolveOpeningView finds something to show. */
   view?: OpeningView;
+  /** The map moves to view again whenever this key changes, never for new data under the same key, and null waits for the next key. */
+  viewKey?: string | null;
+  /** How long a move to a new viewKey takes, 0 to jump. */
+  viewDuration?: number;
   /** False while the page's content is still loading, so the map opens on it rather than moving there after. */
   ready?: boolean;
   /** Saves the view after every move, so the next map without a fixed view opens there. */
@@ -113,7 +120,10 @@ function MapInner(props: Props) {
   const { home } = use(mapConfigReady);
   const [saved] = useState(loadMapView);
   // The map takes its opening view only at creation, so it is decided once and the lists stop here.
-  const [opening, setOpening] = useState<OpeningView | null>(null);
+  const [opening, setOpening] = useState<{
+    view: OpeningView;
+    key: string | null | undefined;
+  } | null>(null);
   const ready = props.ready ?? true;
   // The lists matter only until the view is decided, and not at all when a view is already known.
   const lists = {
@@ -125,31 +135,80 @@ function MapInner(props: Props) {
   const sites = useSites(lists);
 
   if (opening === null) {
-    const decided =
-      ready &&
-      (props.view ??
-        resolveOpeningView({
-          saved,
-          robots: settled(robots),
-          fields: settled(fields),
-          sites: settled(sites),
-          home,
-        }));
-    if (decided) setOpening(decided);
+    if (ready && props.view) {
+      setOpening({ view: props.view, key: props.viewKey });
+    } else if (ready) {
+      const resolved = resolveOpeningView({
+        saved,
+        robots: settled(robots),
+        fields: settled(fields),
+        sites: settled(sites),
+        home,
+      });
+      if (resolved) setOpening({ view: resolved, key: undefined });
+    }
     return <div style={LOADING_STYLE} />;
   }
-  return <MapCanvas {...props} opening={opening} />;
+  return (
+    <MapCanvas {...props} opening={opening.view} openedKey={opening.key} />
+  );
+}
+
+// Fits once per key, so an operator who has panned keeps the view until the page shows something else.
+function FollowView({
+  view,
+  viewKey,
+  openedKey,
+  duration,
+}: {
+  view: OpeningView | undefined;
+  viewKey: string | null | undefined;
+  openedKey: string | null | undefined;
+  duration: number;
+}) {
+  const map = useMap().current;
+  const applied = useRef<string | null | undefined>(openedKey);
+
+  useEffect(() => {
+    if (viewKey == null) {
+      applied.current = null;
+      return;
+    }
+    if (!map || !view || applied.current === viewKey) return;
+    applied.current = viewKey;
+    if ("bounds" in view) {
+      map.fitBounds(view.bounds, {
+        padding: view.padding ?? OPENING_FIT.padding,
+        maxZoom: view.maxZoom ?? OPENING_FIT.maxZoom,
+        duration,
+      });
+    } else {
+      // North up, as a box fit also turns the map, so both kinds of view look the same.
+      map.easeTo({
+        center: view.center,
+        zoom: view.zoom,
+        bearing: 0,
+        duration,
+      });
+    }
+  }, [map, view, viewKey, duration]);
+
+  return null;
 }
 
 function MapCanvas({
   opening,
+  openedKey,
+  view,
+  viewKey,
+  viewDuration = 600,
   rememberView = false,
   children,
   navigation = {},
   onClick,
   cursor,
   ref,
-}: Props & { opening: OpeningView }) {
+}: Props & { opening: OpeningView; openedKey: string | null | undefined }) {
   const [noWebGL2, setNoWebGL2] = useState(false);
   const [hoverLayers, setHoverLayers] = useState<string[]>([]);
   const [hovering, setHovering] = useState(false);
@@ -201,6 +260,12 @@ function MapCanvas({
       >
         <BasemapLayers />
         {children}
+        <FollowView
+          view={view}
+          viewKey={viewKey}
+          openedKey={openedKey}
+          duration={viewDuration}
+        />
         {navigation && (
           <NavigationControl position="bottom-right" {...navigation} />
         )}
