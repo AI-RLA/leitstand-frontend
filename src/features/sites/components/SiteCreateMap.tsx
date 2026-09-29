@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, type Dispatch, type SetStateAction } from "react";
 import {
   Layer,
   Marker,
@@ -44,8 +44,6 @@ export function SiteCreateMap({
   onAnchorChange,
   onOutlineChange,
 }: SiteCreateMapProps) {
-  const [drawCursor, setDrawCursor] = useState("crosshair");
-
   const headingLine = useMemo<Feature<LineString> | FeatureCollection>(() => {
     if (!anchor) return EMPTY_FC;
     const endpoint = headingEndpoint(anchor.lat, anchor.lon, heading, 14);
@@ -59,13 +57,6 @@ export function SiteCreateMap({
     };
   }, [anchor, heading]);
 
-  const cursor =
-    step === "trace-outline"
-      ? drawCursor
-      : step === "place-anchor"
-        ? "crosshair"
-        : "";
-
   return (
     <LeitstandMap
       view={
@@ -74,7 +65,7 @@ export function SiteCreateMap({
           : undefined
       }
       viewKey={anchor ? "anchor" : null}
-      cursor={cursor}
+      cursor={step === "place-anchor" ? "crosshair" : undefined}
       onClick={
         step === "place-anchor"
           ? (e: MapLayerMouseEvent) =>
@@ -86,7 +77,6 @@ export function SiteCreateMap({
         vertices={outline}
         onChange={onOutlineChange}
         enabled={step === "trace-outline"}
-        onCursor={setDrawCursor}
       />
       <Source id="sn-heading" type="geojson" data={headingLine}>
         <Layer id="sn-heading-line" type="line" paint={HEADING_PAINT} />

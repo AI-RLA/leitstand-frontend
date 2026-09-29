@@ -154,6 +154,16 @@ function MapInner(props: Props) {
   );
 }
 
+/** Choose the map cursor from the active tool, the page, or the hover over a clickable layer. */
+function mapCursor(
+  claimed: string | undefined,
+  page: string | undefined,
+  hovering: boolean,
+): string {
+  // An empty cursor leaves the choice to MapLibre, which shows its grab hand for panning.
+  return claimed ?? page ?? (hovering ? "pointer" : "");
+}
+
 // Fits once per key, so an operator who has panned keeps the view until the page shows something else.
 function FollowView({
   view,
@@ -212,6 +222,7 @@ function MapCanvas({
   const [noWebGL2, setNoWebGL2] = useState(false);
   const [hoverLayers, setHoverLayers] = useState<string[]>([]);
   const [hovering, setHovering] = useState(false);
+  const [claimed, setClaimed] = useState<{ cursor: string } | null>(null);
 
   const registerHoverLayer = useCallback((layerId: string) => {
     setHoverLayers((ids) => [...ids, layerId]);
@@ -221,9 +232,15 @@ function MapCanvas({
         return i < 0 ? ids : [...ids.slice(0, i), ...ids.slice(i + 1)];
       });
   }, []);
+  const claimCursor = useCallback((cursor: string) => {
+    const claim = { cursor };
+    setClaimed(claim);
+    // Clears only its own claim, so a late release never takes the cursor from a newer one.
+    return () => setClaimed((current) => (current === claim ? null : current));
+  }, []);
   const interaction = useMemo<MapInteraction>(
-    () => ({ registerHoverLayer }),
-    [registerHoverLayer],
+    () => ({ registerHoverLayer, claimCursor }),
+    [registerHoverLayer, claimCursor],
   );
 
   // The map is created inside a promise, so a missing WebGL2 arrives here and never reaches an error boundary.
@@ -248,7 +265,7 @@ function MapCanvas({
         interactiveLayerIds={hoverLayers.length > 0 ? hoverLayers : undefined}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
-        cursor={cursor ?? (hovering ? "pointer" : "")}
+        cursor={mapCursor(claimed?.cursor, cursor, hovering)}
         onMoveEnd={
           rememberView
             ? (e) => {

@@ -2,6 +2,7 @@ import {
   useEffect,
   useEffectEvent,
   useMemo,
+  useState,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -24,6 +25,7 @@ import {
   type DrawCursor,
   type Vertex,
 } from "./drawInteraction";
+import { useMapCursor } from "../mapInteraction";
 
 const GREEN = "#16A34A";
 const FILL_PAINT: FillLayerSpecification["paint"] = {
@@ -52,31 +54,28 @@ interface Props {
   vertices: Vertex[];
   onChange: Dispatch<SetStateAction<Vertex[]>>;
   enabled: boolean;
-  // The whole map cursor while drawing: crosshair, grab over a vertex, grabbing while dragging, default when off.
-  onCursor: (cursor: string) => void;
 }
 
-export function DrawLayer({ vertices, onChange, enabled, onCursor }: Props) {
+export function DrawLayer({ vertices, onChange, enabled }: Props) {
   const map = useMap().current?.getMap();
   const add = useEffectEvent((v: Vertex) => onChange((prev) => [...prev, v]));
   const move = useEffectEvent((i: number, v: Vertex) =>
     onChange((prev) => prev.with(i, v)),
   );
-  const cursor = useEffectEvent((c: DrawCursor | "default") =>
-    onCursor(c ?? "crosshair"),
-  );
+  const [cursor, setCursor] = useState<DrawCursor>("crosshair");
+  // Crosshair to place a vertex, grab over one and grabbing while dragging it, released when drawing ends.
+  useMapCursor(enabled ? cursor : null);
 
   useEffect(() => {
     if (!map || !enabled) return;
-    cursor(null);
     const dispose = setupDrawInteraction(map, {
       add: (v) => add(v),
       move: (i, v) => move(i, v),
-      cursor: (c) => cursor(c),
+      cursor: setCursor,
     });
     return () => {
       dispose();
-      cursor("default");
+      setCursor("crosshair");
     };
   }, [map, enabled]);
 

@@ -4,6 +4,7 @@ import type { MapLayerMouseEvent, MapSourceDataEvent } from "maplibre-gl";
 
 export interface MapInteraction {
   registerHoverLayer: (layerId: string) => () => void;
+  claimCursor: (cursor: string) => () => void;
 }
 
 export const MapInteractionContext = createContext<MapInteraction | null>(null);
@@ -31,6 +32,16 @@ export function useLayerInteraction(
       map.off("click", layerId, click);
     };
   }, [map, clickable, layerId]);
+}
+
+// A tool such as drawing takes over the map cursor while it is active, and releases it when it stops.
+export function useMapCursor(cursor: string | null) {
+  const interaction = useContext(MapInteractionContext);
+
+  useEffect(() => {
+    if (!interaction || cursor === null) return;
+    return interaction.claimCursor(cursor);
+  }, [interaction, cursor]);
 }
 
 // MapLibre keeps feature state for the life of a source, so it is set once the source exists.

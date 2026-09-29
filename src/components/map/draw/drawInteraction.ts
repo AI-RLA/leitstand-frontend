@@ -1,7 +1,7 @@
 import type * as maplibregl from "maplibre-gl";
 
 export type Vertex = [number, number];
-export type DrawCursor = "grab" | "grabbing" | null;
+export type DrawCursor = "crosshair" | "grab" | "grabbing";
 
 export const DOTS_LAYER = "draw-dots";
 
@@ -25,7 +25,7 @@ export function setupDrawInteraction(
     if (dragging === null) cb.cursor("grab");
   };
   const onLeave = () => {
-    if (dragging === null) cb.cursor(null);
+    if (dragging === null) cb.cursor("crosshair");
   };
   const onMove = (e: maplibregl.MapMouseEvent) => {
     if (dragging !== null) cb.move(dragging, [e.lngLat.lng, e.lngLat.lat]);
@@ -33,7 +33,7 @@ export function setupDrawInteraction(
   const onUp = (e: maplibregl.MapMouseEvent) => {
     dragging = null;
     m.off("mousemove", onMove);
-    cb.cursor(overDot(e) ? "grab" : null);
+    cb.cursor(overDot(e) ? "grab" : "crosshair");
   };
   const onDown = (e: maplibregl.MapLayerMouseEvent) => {
     const index = e.features?.[0]?.properties?.index;

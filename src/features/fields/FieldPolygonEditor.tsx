@@ -42,7 +42,6 @@ export function FieldPolygonEditor({
 }: Props) {
   const [verts, setVerts] = useState<Vertex[]>(initialVertices);
   const [stage, setStage] = useState<Stage>("drawing");
-  const [cursor, setCursor] = useState("crosshair");
   const [name, setName] = useState(initialName);
   const [notes, setNotes] = useState(initialNotes);
   const [error, setError] = useState<string | null>(null);
@@ -155,14 +154,12 @@ export function FieldPolygonEditor({
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative">
           <LeitstandMap
-            cursor={cursor}
             view={fit ? { bounds: fit, padding: 80, maxZoom: 19 } : undefined}
           >
             <DrawLayer
               vertices={verts}
               onChange={setVerts}
               enabled={stage === "drawing"}
-              onCursor={setCursor}
             />
           </LeitstandMap>
         </div>
