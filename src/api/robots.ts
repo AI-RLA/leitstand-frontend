@@ -3,8 +3,15 @@ import { api, type Robot } from "./client";
 
 export const ROBOTS_KEY = ["robots"] as const;
 
-export function useRobots() {
-  return useQuery({ queryKey: ROBOTS_KEY, queryFn: api.listRobots });
+export function useRobots(options?: {
+  enabled?: boolean;
+  subscribed?: boolean;
+}) {
+  return useQuery({
+    queryKey: ROBOTS_KEY,
+    queryFn: api.listRobots,
+    ...options,
+  });
 }
 
 export function useOnlineRobots(): Robot[] {

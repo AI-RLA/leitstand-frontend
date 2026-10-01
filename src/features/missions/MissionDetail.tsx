@@ -10,8 +10,9 @@ import {
 } from "@/api/missions";
 import { apiErrorMessage } from "@/api/client";
 import { useRobots } from "@/api/robots";
-import { useSites } from "@/api/sites";
-import { useFields } from "@/api/fields";
+import { NO_SITES, useSites } from "@/api/sites";
+import { NO_FIELDS, useFields } from "@/api/fields";
+import { isSettled } from "@/api/settled";
 import { useArmed } from "@/lib/useArmed";
 import {
   coverageTurningRadius,
@@ -42,8 +43,11 @@ export function MissionDetail({ id }: Props) {
   const remove = useDeleteMission(id);
   const restore = useRestoreMission(id);
   const { data: robots = [] } = useRobots();
-  const { data: sites = [] } = useSites();
-  const { data: fields = [] } = useFields();
+  const sitesQuery = useSites();
+  const fieldsQuery = useFields();
+  const sites = sitesQuery.data ?? NO_SITES;
+  const fields = fieldsQuery.data ?? NO_FIELDS;
+  const listsSettled = isSettled(sitesQuery) && isSettled(fieldsQuery);
   const coverageFields = useMemo(() => {
     const ids = new Set(
       (mission?.stages ?? []).flatMap((s) =>
@@ -333,10 +337,11 @@ export function MissionDetail({ id }: Props) {
           <div className="flex-1 h-[60vh] min-h-[20rem] sticky top-0 [@container(min-width:53.5rem)]:h-full">
             <MissionPathPreview
               stages={mission.stages}
-              fitKey={mission.mission_id}
+              fitKey={listsSettled ? mission.mission_id : null}
               state={null}
               sites={sites}
               fields={coverageFields}
+              robotId={dispatchRobot || null}
             />
           </div>
         </div>

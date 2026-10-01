@@ -4,8 +4,14 @@ import { api, type Site, type SiteCreate, type SiteUpdate } from "./client";
 export const SITES_KEY = ["sites"] as const;
 export const siteKey = (id: string) => ["sites", id] as const;
 
-export function useSites() {
-  return useQuery({ queryKey: SITES_KEY, queryFn: api.listSites });
+// A shared empty list, so consumers do not see a new array identity on every render while loading.
+export const NO_SITES: Site[] = [];
+
+export function useSites(options?: {
+  enabled?: boolean;
+  subscribed?: boolean;
+}) {
+  return useQuery({ queryKey: SITES_KEY, queryFn: api.listSites, ...options });
 }
 
 export function useSite(id: string, options?: { enabled?: boolean }) {

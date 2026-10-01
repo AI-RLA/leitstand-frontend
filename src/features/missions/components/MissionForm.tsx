@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { useFields } from "@/api/fields";
+import { NO_FIELDS, useFields } from "@/api/fields";
+import { isSettled } from "@/api/settled";
 import { useRobots } from "@/api/robots";
-import { useSites } from "@/api/sites";
+import { NO_SITES, useSites } from "@/api/sites";
 import type { Robot, StageInput } from "@/api/client";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -124,14 +125,23 @@ export function MissionForm({
   onSubmit,
   onCancel,
 }: MissionFormProps) {
-  const { data: sites = [] } = useSites();
-  const { data: fields = [] } = useFields();
+  const sitesQuery = useSites();
+  const sites = sitesQuery.data ?? NO_SITES;
+  const { data: fields = NO_FIELDS } = useFields();
   const { data: robots = [] } = useRobots();
 
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [stages, setStages] = useState<StageDraft[]>(initialStages);
   const [robotId, setRobotId] = useState<string | null>(initialRobotId);
+
+  // The map shows robots from the live feed, which can know a robot before the robot list does.
+  const chooseRobot = useCallback(
+    (id: string) => {
+      if (robots.some((r) => r.id === id)) setRobotId(id);
+    },
+    [robots],
+  );
   const [addingIndex, setAddingIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -420,6 +430,9 @@ export function MissionForm({
         <MissionMapWorkspace
           stages={stages}
           sites={sites}
+          sitesReady={isSettled(sitesQuery)}
+          robotId={robotId}
+          onRobotClick={chooseRobot}
           addingIndex={addingIndex}
           onMapClick={handleMapClick}
           onCancelAddMode={() => setAddingIndex(null)}

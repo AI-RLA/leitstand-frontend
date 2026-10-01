@@ -1,10 +1,7 @@
+import type { MapView } from "@/config/mapConfig";
 const KEY = "leitstand.mapView";
-const BASEMAP_KEY = "leitstand.basemap";
-const DEFAULT = { center: [8.020798, 52.286366] as [number, number], zoom: 17 };
 
-function isMapView(
-  v: unknown,
-): v is { center: [number, number]; zoom: number } {
+function isMapView(v: unknown): v is MapView {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
   return (
@@ -16,7 +13,7 @@ function isMapView(
   );
 }
 
-export function loadMapView(): { center: [number, number]; zoom: number } {
+export function loadMapView(): MapView | null {
   try {
     const raw = sessionStorage.getItem(KEY);
     if (raw) {
@@ -26,30 +23,12 @@ export function loadMapView(): { center: [number, number]; zoom: number } {
   } catch {
     // sessionStorage / localStorage may be unavailable (private browsing, quota)
   }
-  return DEFAULT;
+  return null;
 }
 
 export function saveMapView(center: [number, number], zoom: number): void {
   try {
     sessionStorage.setItem(KEY, JSON.stringify({ center, zoom }));
-  } catch {
-    // sessionStorage / localStorage may be unavailable (private browsing, quota)
-  }
-}
-
-export function loadBasemap(): "osm" | "dop" {
-  try {
-    const v = localStorage.getItem(BASEMAP_KEY);
-    if (v === "osm" || v === "dop") return v;
-  } catch {
-    // sessionStorage / localStorage may be unavailable (private browsing, quota)
-  }
-  return "osm";
-}
-
-export function saveBasemap(basemap: "osm" | "dop"): void {
-  try {
-    localStorage.setItem(BASEMAP_KEY, basemap);
   } catch {
     // sessionStorage / localStorage may be unavailable (private browsing, quota)
   }

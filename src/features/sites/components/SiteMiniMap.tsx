@@ -1,125 +1,99 @@
-import { useEffect, useRef } from "react";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
-import { loadBasemap } from "@/stores/mapView";
+import { useMemo } from "react";
+import { Layer, Source } from "@vis.gl/react-maplibre";
+import type {
+  CircleLayerSpecification,
+  FillLayerSpecification,
+  LineLayerSpecification,
+} from "maplibre-gl";
+import type { Feature, LineString, Point } from "geojson";
 import { headingEndpoint } from "@/lib/geo";
-import {
-  MAP_SOURCES,
-  baseLayers,
-} from "@/components/map/BasemapControl.constants";
-import { BasemapControl } from "@/components/map/BasemapControl";
+import { EMPTY_FC, polygonFeature } from "@/components/map/fieldUtils";
+import { LeitstandMap } from "@/components/map/LeitstandMap";
 import type { SiteViewModel } from "../adapters";
 
 interface SiteMiniMapProps {
   vm: SiteViewModel;
 }
 
+const OUTLINE_FILL_PAINT: FillLayerSpecification["paint"] = {
+  "fill-color": "#16A34A",
+  "fill-opacity": 0.15,
+};
+const OUTLINE_LINE_PAINT: LineLayerSpecification["paint"] = {
+  "line-color": "#16A34A",
+  "line-width": 2,
+};
+const HEADING_PAINT: LineLayerSpecification["paint"] = {
+  "line-color": "#16A34A",
+  "line-width": 3,
+};
+const ANCHOR_ZOOM = 17;
+const ANCHOR_PAINT: CircleLayerSpecification["paint"] = {
+  "circle-radius": 7,
+  "circle-color": "#16A34A",
+  "circle-stroke-color": "#fff",
+  "circle-stroke-width": 2,
+};
+
 export function SiteMiniMap({ vm }: SiteMiniMapProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
+  const { anchorLat, anchorLon, anchorHeadingDeg, outline } = vm;
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const endpoint = headingEndpoint(
-      vm.anchorLat,
-      vm.anchorLon,
-      vm.anchorHeadingDeg,
-      12,
-    );
+  const anchor = useMemo<Feature<Point>>(
+    () => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [anchorLon, anchorLat] },
+      properties: {},
+    }),
+    [anchorLat, anchorLon],
+  );
 
-    const sources: Record<string, maplibregl.SourceSpecification> = {
-      ...MAP_SOURCES,
-      "site-anchor": {
-        type: "geojson",
-        data: {
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: [vm.anchorLon, vm.anchorLat],
-          },
-          properties: {},
-        },
+  const heading = useMemo<Feature<LineString>>(
+    () => ({
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [anchorLon, anchorLat],
+          headingEndpoint(anchorLat, anchorLon, anchorHeadingDeg, 12),
+        ],
       },
-      "site-heading": {
-        type: "geojson",
-        data: {
-          type: "Feature",
-          geometry: {
-            type: "LineString",
-            coordinates: [[vm.anchorLon, vm.anchorLat], endpoint],
-          },
-          properties: {},
-        },
-      },
-      "site-outline": {
-        type: "geojson",
-        data: vm.outline
-          ? {
-              type: "Feature",
-              // Backend Polygon allows bbox: null which GeoJSON.Polygon does
-              // not — drop it; bbox is optional and we don't need it here.
-              geometry: {
-                type: "Polygon",
-                coordinates: vm.outline.coordinates,
-              },
-              properties: {},
-            }
-          : { type: "FeatureCollection", features: [] },
-      },
-    };
+      properties: {},
+    }),
+    [anchorLat, anchorLon, anchorHeadingDeg],
+  );
 
-    const layers: maplibregl.LayerSpecification[] = [
-      ...baseLayers(loadBasemap()),
-      {
-        id: "site-outline-fill",
-        type: "fill",
-        source: "site-outline",
-        paint: { "fill-color": "#16A34A", "fill-opacity": 0.15 },
-      },
-      {
-        id: "site-outline-line",
-        type: "line",
-        source: "site-outline",
-        paint: { "line-color": "#16A34A", "line-width": 2 },
-      },
-      {
-        id: "site-heading-line",
-        type: "line",
-        source: "site-heading",
-        paint: { "line-color": "#16A34A", "line-width": 3 },
-      },
-      {
-        id: "site-anchor-dot",
-        type: "circle",
-        source: "site-anchor",
-        paint: {
-          "circle-radius": 7,
-          "circle-color": "#16A34A",
-          "circle-stroke-color": "#fff",
-          "circle-stroke-width": 2,
-        },
-      },
-    ];
-
-    const m = new maplibregl.Map({
-      container: containerRef.current,
-      style: { version: 8, sources, layers },
-      center: [vm.anchorLon, vm.anchorLat],
-      zoom: 17,
-      attributionControl: false,
-    });
-    mapRef.current = m;
-
-    return () => {
-      m.remove();
-      mapRef.current = null;
-    };
-  }, [vm.id, vm.anchorLat, vm.anchorLon, vm.anchorHeadingDeg, vm.outline]);
+  const outlineData = useMemo(
+    () => (outline ? polygonFeature(outline.coordinates) : EMPTY_FC),
+    [outline],
+  );
 
   return (
     <div className="relative h-[320px] rounded-lg overflow-hidden border border-border mb-3">
-      <div ref={containerRef} className="absolute inset-0" />
-      <BasemapControl mapRef={mapRef} />
+      <LeitstandMap
+        view={{ center: [anchorLon, anchorLat], zoom: ANCHOR_ZOOM }}
+        viewKey={`${vm.id}:${anchorLon},${anchorLat}`}
+        viewDuration={0}
+        navigation={false}
+      >
+        <Source id="site-outline" type="geojson" data={outlineData}>
+          <Layer
+            id="site-outline-fill"
+            type="fill"
+            paint={OUTLINE_FILL_PAINT}
+          />
+          <Layer
+            id="site-outline-line"
+            type="line"
+            paint={OUTLINE_LINE_PAINT}
+          />
+        </Source>
+        <Source id="site-heading" type="geojson" data={heading}>
+          <Layer id="site-heading-line" type="line" paint={HEADING_PAINT} />
+        </Source>
+        <Source id="site-anchor" type="geojson" data={anchor}>
+          <Layer id="site-anchor-dot" type="circle" paint={ANCHOR_PAINT} />
+        </Source>
+      </LeitstandMap>
     </div>
   );
 }

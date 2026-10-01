@@ -3,8 +3,9 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { useCloseMissionRun, useMission } from "@/api/missions";
 import { useAnnotateRun, useRun, useRunState } from "@/api/runs";
-import { useSites } from "@/api/sites";
-import { useFields } from "@/api/fields";
+import { NO_SITES, useSites } from "@/api/sites";
+import { NO_FIELDS, useFields } from "@/api/fields";
+import { isSettled } from "@/api/settled";
 import { useRobots } from "@/api/robots";
 import { apiErrorMessage } from "@/api/client";
 import { useArmed } from "@/lib/useArmed";
@@ -39,8 +40,11 @@ export function RunDetail({ missionId, runId }: Props) {
   const active = isActiveStatus(run?.status);
   const now = useNowTick(1000, active);
   const { data: robots = [] } = useRobots();
-  const { data: sites = [] } = useSites();
-  const { data: fields = [] } = useFields();
+  const sitesQuery = useSites();
+  const fieldsQuery = useFields();
+  const sites = sitesQuery.data ?? NO_SITES;
+  const fields = fieldsQuery.data ?? NO_FIELDS;
+  const listsSettled = isSettled(sitesQuery) && isSettled(fieldsQuery);
   const live = useMissionState(active ? missionId : null, runId);
   // REST /state is the durable per-stage source for a run that is not active, because the WS
   // latch is in-process and does not survive a backend restart.
@@ -209,7 +213,7 @@ export function RunDetail({ missionId, runId }: Props) {
           <div className="flex-1 h-[60vh] min-h-[20rem] sticky top-0 [@container(min-width:53.5rem)]:h-full">
             <MissionPathPreview
               stages={run.stages}
-              fitKey={run.run_id}
+              fitKey={listsSettled ? run.run_id : null}
               state={state}
               sites={sites}
               siteAnchors={run.site_anchors}
