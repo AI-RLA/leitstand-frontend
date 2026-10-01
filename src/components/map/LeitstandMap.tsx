@@ -19,21 +19,19 @@ import {
   type MapLayerMouseEvent,
   type MapRef,
 } from "@vis.gl/react-maplibre";
-import { GPUInitializationError, type StyleSpecification } from "maplibre-gl";
+import { GPUInitializationError } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadMapView, saveMapView } from "@/stores/mapView";
 import { useFields } from "@/api/fields";
 import { useRobots } from "@/api/robots";
 import { useSites } from "@/api/sites";
 import { mapConfigReady } from "@/config/mapConfig";
-import { BACKGROUND_COLOR, BasemapLayers } from "./BasemapLayers";
+import { BasemapLayers } from "./BasemapLayers";
+import { BACKGROUND_COLOR, BASE_STYLE } from "./baseStyle";
 import { LayerControl } from "./LayerControl";
 import { MapInteractionContext, type MapInteraction } from "./mapInteraction";
 import { MapUnavailable } from "./MapUnavailable";
 import { resolveOpeningView, type OpeningView } from "./openingView";
-
-// A changed style is applied as a diff that re-creates every app source, so the style never changes.
-const EMPTY_STYLE: StyleSpecification = { version: 8, sources: {}, layers: [] };
 
 // MapLibre's own default control credits it, and passing any options to the control drops that link.
 const MAPLIBRE_CREDIT =
@@ -256,7 +254,7 @@ function MapCanvas({
       <Map
         ref={ref}
         initialViewState={initialView(opening)}
-        mapStyle={EMPTY_STYLE}
+        mapStyle={BASE_STYLE}
         attributionControl={false}
         // The host element must be positioned and have a height, as every page's map container does.
         style={{ position: "absolute", inset: 0 }}
