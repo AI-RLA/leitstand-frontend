@@ -17,6 +17,7 @@ import {
 } from "@/components/map/fieldUtils";
 import { FieldsLayer } from "@/components/map/FieldsLayer";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
+import { stageColors } from "@/components/ui/statusColors";
 import { anchorFromSite, localToLatLon, type SiteAnchor } from "../siteFrame";
 import { MAINLAND_PAINT, mainlandFeatures } from "./coverageLayers";
 import { stageDrivenWaypoints, stageWaypoints } from "../stageWaypoints";
@@ -27,6 +28,7 @@ import type {
   Site,
   Stage,
   StageStateView,
+  StageStatus,
   RunSiteAnchor,
 } from "@/api/client";
 
@@ -50,44 +52,17 @@ interface MissionPathPreviewProps {
 
 interface StagePath {
   stageIndex: number;
-  status: StageStateView["status"] | "PENDING";
+  status: StageStatus;
+  /** The status's accent, which the status layers and the endpoint label paint. */
+  color: string;
   /** The line actually driven, turns included. [lng, lat] */
   line: [number, number][];
   /** The waypoints the plan names, which is far fewer points than the line is sampled at. */
   marks: [number, number][];
 }
 
-const STATUS_COLOR = {
-  FINISHED: "#16A34A",
-  RUNNING: "#16A34A",
-  INITIALIZING: "#16A34A",
-  PAUSED: "#F59E0B",
-  FAILED: "#EF4444",
-} as const;
-const STATUS_COLOR_PENDING = "#94A3B8";
 const ENDPOINT_DARK = "#475569";
-
-function statusColor(status: StagePath["status"]): string {
-  return status in STATUS_COLOR
-    ? STATUS_COLOR[status as keyof typeof STATUS_COLOR]
-    : STATUS_COLOR_PENDING;
-}
-
-const STATUS_MATCH: ExpressionSpecification = [
-  "match",
-  ["get", "status"],
-  "FINISHED",
-  STATUS_COLOR.FINISHED,
-  "RUNNING",
-  STATUS_COLOR.RUNNING,
-  "INITIALIZING",
-  STATUS_COLOR.INITIALIZING,
-  "PAUSED",
-  STATUS_COLOR.PAUSED,
-  "FAILED",
-  STATUS_COLOR.FAILED,
-  STATUS_COLOR_PENDING,
-];
+const FEATURE_COLOR: ExpressionSpecification = ["get", "color"];
 
 type Waypoint = ReturnType<typeof stageWaypoints>[number];
 
@@ -151,9 +126,11 @@ function resolveStagePaths(
       stage.kind === "coverage"
         ? toCoords(stageDrivenWaypoints(stage), sites, frozen)
         : marks;
+    const status = byId.get(stage.stage_id)?.status ?? "WAITING";
     out.push({
       stageIndex: si,
-      status: byId.get(stage.stage_id)?.status ?? "PENDING",
+      status,
+      color: stageColors(status).accent,
       line,
       marks,
     });
@@ -201,43 +178,34 @@ const CASING_PAINT: LineLayerSpecification["paint"] = {
   "line-opacity": 0.5,
   "line-blur": 1,
 };
-const PENDING_FILTER: FilterSpecification = [
+const ACTIVE_STATUSES: StageStatus[] = ["RUNNING", "INITIALIZING", "PAUSED"];
+const IS_ACTIVE: ExpressionSpecification = [
   "in",
   ["get", "status"],
-  ["literal", ["PENDING", "WAITING", "CANCELLED", "SKIPPED"]],
+  ["literal", ACTIVE_STATUSES],
 ];
-const PENDING_PAINT: LineLayerSpecification["paint"] = {
+// Stages that ran or are running draw solid, and everything else draws dashed, so a status newer
+// than this build still gets a line.
+const IS_SOLID: ExpressionSpecification = [
+  "in",
+  ["get", "status"],
+  ["literal", ["FINISHED", "FAILED", ...ACTIVE_STATUSES]],
+];
+const IS_DASHED: ExpressionSpecification = ["!", IS_SOLID];
+const SOLID_PAINT: LineLayerSpecification["paint"] = {
+  "line-color": FEATURE_COLOR,
+  "line-width": ["case", IS_ACTIVE, 4, 3],
+  "line-opacity": ["case", ["==", ["get", "status"], "FINISHED"], 0.6, 1],
+};
+// Darker than the waypoints of these stages, so a thin dashed line still reads on the orthophoto.
+const DASHED_PAINT: LineLayerSpecification["paint"] = {
   "line-color": "#64748B",
   "line-width": 2.5,
   "line-dasharray": [3, 2],
 };
-const FINISHED_FILTER: FilterSpecification = [
-  "==",
-  ["get", "status"],
-  "FINISHED",
-];
-const FINISHED_PAINT: LineLayerSpecification["paint"] = {
-  "line-color": "#16A34A",
-  "line-width": 3,
-  "line-opacity": 0.6,
-};
-const RUNNING_FILTER: FilterSpecification = [
-  "in",
-  ["get", "status"],
-  ["literal", ["RUNNING", "INITIALIZING", "PAUSED"]],
-];
-const RUNNING_PAINT: LineLayerSpecification["paint"] = {
-  "line-color": "#16A34A",
-  "line-width": 4,
-};
-const FAILED_FILTER: FilterSpecification = ["==", ["get", "status"], "FAILED"];
-const FAILED_PAINT: LineLayerSpecification["paint"] = {
-  "line-color": "#EF4444",
-  "line-width": 3,
-};
 const WAYPOINT_PAINT: CircleLayerSpecification["paint"] = {
   "circle-radius": 4,
-  "circle-color": STATUS_MATCH,
+  "circle-color": FEATURE_COLOR,
   "circle-stroke-color": "#fff",
   "circle-stroke-width": 1.5,
 };
@@ -252,7 +220,7 @@ const IS_END: ExpressionSpecification = ["==", ["get", "role"], "end"];
 const ENDPOINT_PAINT: CircleLayerSpecification["paint"] = {
   "circle-radius": 5,
   "circle-color": ["case", IS_END, ENDPOINT_DARK, "#fff"],
-  "circle-stroke-color": ["case", IS_END, "#fff", STATUS_MATCH],
+  "circle-stroke-color": ["case", IS_END, "#fff", FEATURE_COLOR],
   "circle-stroke-width": ["case", IS_END, 1.5, 2],
 };
 const ENDPOINT_HIT = "mp-endpoint-hit";
@@ -267,7 +235,7 @@ const NO_POINTER = { pointerEvents: "none" } as const;
 
 interface HoveredEnd {
   role: "start" | "end";
-  status: StagePath["status"];
+  color: string;
   lngLat: [number, number];
 }
 
@@ -294,9 +262,9 @@ function EndpointLabel() {
         prev.role === role &&
         prev.lngLat[0] === lng &&
         prev.lngLat[1] === lat &&
-        prev.status === feature.properties?.status
+        prev.color === feature.properties?.color
           ? prev
-          : { role, status: feature.properties?.status, lngLat: [lng, lat] },
+          : { role, color: feature.properties?.color, lngLat: [lng, lat] },
       );
     };
     const hide = () => setHovered(null);
@@ -321,10 +289,7 @@ function EndpointLabel() {
         <span
           className="w-1.5 h-1.5 rounded-full"
           style={{
-            background:
-              hovered.role === "end"
-                ? ENDPOINT_DARK
-                : statusColor(hovered.status),
+            background: hovered.role === "end" ? ENDPOINT_DARK : hovered.color,
           }}
         />
         <span>{hovered.role === "start" ? "Start" : "End"}</span>
@@ -365,7 +330,11 @@ export function MissionPathPreview({
         .map((p) => ({
           type: "Feature",
           geometry: { type: "LineString", coordinates: p.line },
-          properties: { stageIndex: p.stageIndex, status: p.status },
+          properties: {
+            stageIndex: p.stageIndex,
+            status: p.status,
+            color: p.color,
+          },
         })),
     };
     const ends = endpointKeys(paths);
@@ -380,7 +349,7 @@ export function MissionPathPreview({
             properties: {
               stageIndex: p.stageIndex,
               waypointIndex: wi,
-              status: p.status,
+              color: p.color,
               role:
                 key === ends.start ? "start" : key === ends.end ? "end" : "mid",
             },
@@ -414,28 +383,16 @@ export function MissionPathPreview({
             paint={CASING_PAINT}
           />
           <Layer
-            id="mp-path-pending"
+            id="mp-path-dashed"
             type="line"
-            filter={PENDING_FILTER}
-            paint={PENDING_PAINT}
+            filter={IS_DASHED}
+            paint={DASHED_PAINT}
           />
           <Layer
-            id="mp-path-finished"
+            id="mp-path-solid"
             type="line"
-            filter={FINISHED_FILTER}
-            paint={FINISHED_PAINT}
-          />
-          <Layer
-            id="mp-path-running"
-            type="line"
-            filter={RUNNING_FILTER}
-            paint={RUNNING_PAINT}
-          />
-          <Layer
-            id="mp-path-failed"
-            type="line"
-            filter={FAILED_FILTER}
-            paint={FAILED_PAINT}
+            filter={IS_SOLID}
+            paint={SOLID_PAINT}
           />
         </Source>
         <Source id="mp-waypoints" type="geojson" data={points}>

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Ban, Check, X } from "lucide-react";
 import { StatusPill } from "@/components/ui/StatusPill";
+import { stageColors } from "@/components/ui/statusColors";
 import { formatArea } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import { durationFromMs } from "@/lib/relativeTime";
@@ -69,60 +70,72 @@ function StageNode({
 }) {
   const base =
     "w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 shrink-0 mt-0.5";
-  if (status === "FINISHED") {
-    return (
-      <div className={cn(base, "bg-primary border-primary text-white")}>
-        <Check className="w-3 h-3" strokeWidth={3} />
-      </div>
-    );
-  }
-  if (status === "FAILED") {
-    return (
-      <div className={cn(base, "bg-[#EF4444] border-[#EF4444] text-white")}>
-        <X className="w-3 h-3" strokeWidth={3} />
-      </div>
-    );
-  }
-  if (status === "CANCELLED") {
-    return (
-      <div className={cn(base, "bg-muted border-[#CBD5E1] text-[#94A3B8]")}>
-        <Ban className="w-3 h-3" strokeWidth={2.5} />
-      </div>
-    );
-  }
-  if (status === "SKIPPED") {
-    return (
-      <div
-        className={cn(
-          base,
-          "bg-white border-dashed border-[#CBD5E1] text-[#CBD5E1]",
-        )}
-      >
-        <span className="w-1.5 h-0.5 bg-[#CBD5E1]" />
-      </div>
-    );
-  }
-  if (status === "RUNNING") {
-    return (
-      <div
-        className={cn(base, "bg-white border-primary ring-4 ring-primary/15")}
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-      </div>
-    );
-  }
-  const amber = status === "PAUSED" || status === "INITIALIZING";
-  return (
+  const numbered = (colors?: CSSProperties) => (
     <div
       className={cn(
         base,
         "bg-white font-mono text-ui-xs font-semibold",
-        amber ? "border-[#F59E0B] text-[#B45309]" : "border-border text-t3",
+        !colors && "border-border text-t3",
       )}
+      style={colors}
     >
       {index + 1}
     </div>
   );
+  if (status === null) return numbered();
+  const { accent, background, text } = stageColors(status);
+  switch (status) {
+    case "FINISHED":
+    case "FAILED": {
+      const Icon = status === "FINISHED" ? Check : X;
+      return (
+        <div
+          className={cn(base, "text-white")}
+          style={{ background: accent, borderColor: accent }}
+        >
+          <Icon className="w-3 h-3" strokeWidth={3} />
+        </div>
+      );
+    }
+    case "CANCELLED":
+      return (
+        <div
+          className={base}
+          style={{ background, borderColor: accent, color: accent }}
+        >
+          <Ban className="w-3 h-3" strokeWidth={2.5} />
+        </div>
+      );
+    case "SKIPPED":
+      return (
+        <div
+          className={cn(base, "bg-white border-dashed")}
+          style={{ borderColor: accent }}
+        >
+          <span className="w-1.5 h-0.5" style={{ background: accent }} />
+        </div>
+      );
+    case "RUNNING":
+      return (
+        <div
+          className={cn(base, "bg-white")}
+          style={{
+            borderColor: accent,
+            boxShadow: `0 0 0 4px color-mix(in srgb, ${accent} 15%, transparent)`,
+          }}
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full animate-pulse"
+            style={{ background: accent }}
+          />
+        </div>
+      );
+    case "INITIALIZING":
+    case "PAUSED":
+      return numbered({ borderColor: accent, color: text });
+    default:
+      return numbered();
+  }
 }
 
 export function MissionStageTimeline({
