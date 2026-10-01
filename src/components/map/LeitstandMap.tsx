@@ -25,6 +25,7 @@ import { loadMapView, saveMapView } from "@/stores/mapView";
 import { useFields } from "@/api/fields";
 import { useRobots } from "@/api/robots";
 import { useSites } from "@/api/sites";
+import { isSettled } from "@/api/settled";
 import { mapConfigReady } from "@/config/mapConfig";
 import { BasemapLayers } from "./BasemapLayers";
 import { BACKGROUND_COLOR, BASE_STYLE } from "./baseStyle";
@@ -85,9 +86,7 @@ function settled<T>(query: {
   fetchStatus: string;
   data?: T[];
 }): T[] | undefined {
-  return query.isPending && query.fetchStatus !== "paused"
-    ? undefined
-    : (query.data ?? []);
+  return isSettled(query) ? (query.data ?? []) : undefined;
 }
 
 // The center stands in for the box when the map is created too small to fit the box into.

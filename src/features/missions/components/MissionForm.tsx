@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { NO_FIELDS, useFields } from "@/api/fields";
+import { isSettled } from "@/api/settled";
 import { useRobots } from "@/api/robots";
 import { NO_SITES, useSites } from "@/api/sites";
 import type { Robot, StageInput } from "@/api/client";
@@ -124,7 +125,8 @@ export function MissionForm({
   onSubmit,
   onCancel,
 }: MissionFormProps) {
-  const { data: sites = NO_SITES, isPending: sitesPending } = useSites();
+  const sitesQuery = useSites();
+  const sites = sitesQuery.data ?? NO_SITES;
   const { data: fields = NO_FIELDS } = useFields();
   const { data: robots = [] } = useRobots();
 
@@ -428,7 +430,7 @@ export function MissionForm({
         <MissionMapWorkspace
           stages={stages}
           sites={sites}
-          sitesReady={!sitesPending}
+          sitesReady={isSettled(sitesQuery)}
           robotId={robotId}
           onRobotClick={chooseRobot}
           addingIndex={addingIndex}
