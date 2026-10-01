@@ -7,7 +7,14 @@ import type {
 } from "maplibre-gl";
 import type { FeatureCollection, LineString, Point } from "geojson";
 import { X, Crosshair } from "lucide-react";
-import { bboxOfPoints } from "@/components/map/fieldUtils";
+import { NO_FIELDS, useFields } from "@/api/fields";
+import { isSettled } from "@/api/settled";
+import { FieldsLayer } from "@/components/map/FieldsLayer";
+import {
+  bboxOfPoints,
+  fieldBbox,
+  type LngLatBox,
+} from "@/components/map/fieldUtils";
 import { LeitstandMap } from "@/components/map/LeitstandMap";
 import { RobotsLayer } from "@/features/fleet/RobotsLayer";
 import { useFleet } from "@/stores/fleet";
@@ -17,7 +24,7 @@ import {
   mainlandFeatures,
   MAINLAND_PAINT,
 } from "./coverageLayers";
-import type { CoverageStage, Site } from "@/api/client";
+import type { CoverageStage, Field, Site } from "@/api/client";
 import type { StageDraft } from "./StageRow";
 
 interface MissionMapWorkspaceProps {
@@ -79,10 +86,53 @@ function plansOf(stages: StageDraft[]): CoverageStage[] {
   );
 }
 
-function contentBounds(stages: StageDraft[], sites: Site[]) {
+function fieldsOf(stages: StageDraft[], fields: Field[]): Field[] {
+  const ids = new Set(
+    stages.flatMap((s) =>
+      s.kind === "coverage" && s.field_id ? [s.field_id] : [],
+    ),
+  );
+  return fields.filter((f) => ids.has(f.id));
+}
+
+interface Shape {
+  key: string;
+  bounds: LngLatBox | null;
+}
+
+const fieldKey = (fieldId: string) => `field:${fieldId}`;
+const planKey = (stageId: string) => `plan:${stageId}`;
+
+function shapesOf(planned: CoverageStage[], fields: Field[]): Shape[] {
+  return [
+    ...fields.map((f) => ({
+      key: fieldKey(f.id),
+      bounds: fieldBbox(f.geometry),
+    })),
+    ...planned.map((p) => ({
+      key: planKey(p.stage_id),
+      bounds: bboxOfPoints(coverageLines([p]).flat()),
+    })),
+  ];
+}
+
+function shapeKeysOf(stages: StageDraft[]): string[] {
+  return stages.flatMap((s) =>
+    s.kind !== "coverage"
+      ? []
+      : [
+          ...(s.field_id ? [fieldKey(s.field_id)] : []),
+          ...(s.planned ? [planKey(s.planned.stage_id)] : []),
+        ],
+  );
+}
+
+function contentBounds(stages: StageDraft[], sites: Site[], fields: Field[]) {
   return bboxOfPoints([
     ...resolveWaypoints(stages, sites).map((r) => r.lngLat),
-    ...coverageLines(plansOf(stages)).flat(),
+    ...shapesOf(plansOf(stages), fieldsOf(stages, fields)).flatMap(
+      (s) => s.bounds ?? [],
+    ),
   ]);
 }
 
@@ -120,26 +170,25 @@ const WAYPOINT_FOCUSED_PAINT: CircleLayerSpecification["paint"] = {
   "circle-stroke-width": 2,
 };
 
-// Brings the map to plans the operator has not seen yet and leaves it alone for plans already shown.
-function FitNewPlans({
-  planned,
+// Brings the map to a field or plan that has just appeared and leaves it alone otherwise.
+function FitNewShapes({
+  shapes,
   initial,
 }: {
-  planned: CoverageStage[];
-  initial: CoverageStage[];
+  shapes: Shape[];
+  initial: string[];
 }) {
   const map = useMap().current;
-  const shown = useRef(new Set(initial.map((p) => p.stage_id)));
+  const previous = useRef(new Set(initial));
 
   useEffect(() => {
     if (!map) return;
-    const fresh = planned.filter((p) => !shown.current.has(p.stage_id));
-    if (fresh.length === 0) return;
-    const bounds = bboxOfPoints(coverageLines(fresh).flat());
+    const fresh = shapes.filter((s) => !previous.current.has(s.key));
+    previous.current = new Set(shapes.map((s) => s.key));
+    const bounds = bboxOfPoints(fresh.flatMap((s) => s.bounds ?? []));
     if (bounds)
       map.fitBounds(bounds, { padding: 40, duration: 300, maxZoom: 19 });
-    for (const p of planned) shown.current.add(p.stage_id);
-  }, [map, planned]);
+  }, [map, shapes]);
 
   return null;
 }
@@ -185,12 +234,21 @@ export function MissionMapWorkspace({
 }: MissionMapWorkspaceProps) {
   // The stages the editor opened with, so the map fits to them once and never to later edits.
   const [opening] = useState(stages);
+  const fieldsQuery = useFields();
+  const allFields = fieldsQuery.data ?? NO_FIELDS;
   const openingBounds = useMemo(
-    () => contentBounds(opening, sites),
-    [opening, sites],
+    () => contentBounds(opening, sites, allFields),
+    [opening, sites, allFields],
   );
-  const openingPlans = useMemo(() => plansOf(opening), [opening]);
+  const openingNeedsFields = opening.some((s) => s.kind === "coverage");
   const planned = useMemo(() => plansOf(stages), [stages]);
+  const fields = useMemo(
+    () => fieldsOf(stages, allFields),
+    [stages, allFields],
+  );
+  const shapes = useMemo(() => shapesOf(planned, fields), [planned, fields]);
+  // The opening view already shows what the editor opened with, so only later choices move the map.
+  const shownAtOpening = useMemo(() => shapeKeysOf(opening), [opening]);
 
   const { waypoints, paths } = useMemo(() => {
     const resolved = resolveWaypoints(stages, sites);
@@ -236,8 +294,7 @@ export function MissionMapWorkspace({
     };
     return { coverage, mainland: mainlandFeatures(planned) };
   }, [planned]);
-  const empty =
-    waypoints.features.length === 0 && coverage.features.length === 0;
+  const empty = waypoints.features.length === 0 && shapes.length === 0;
 
   return (
     <div className="relative h-full w-full">
@@ -247,10 +304,14 @@ export function MissionMapWorkspace({
             ? { bounds: openingBounds, padding: 40, maxZoom: 19 }
             : undefined
         }
-        ready={opening.length === 0 || sitesReady}
+        ready={
+          (opening.length === 0 || sitesReady) &&
+          (!openingNeedsFields || isSettled(fieldsQuery))
+        }
         cursor={addingIndex !== null ? "crosshair" : undefined}
         onClick={(e) => onMapClick(e.lngLat.lat, e.lngLat.lng)}
       >
+        <FieldsLayer fields={fields} />
         <Source id="mn-mainland" type="geojson" data={mainland}>
           <Layer id="mn-mainland-outline" type="line" paint={MAINLAND_PAINT} />
         </Source>
@@ -296,7 +357,7 @@ export function MissionMapWorkspace({
             paint={WAYPOINT_FOCUSED_PAINT}
           />
         </Source>
-        <FitNewPlans planned={planned} initial={openingPlans} />
+        <FitNewShapes shapes={shapes} initial={shownAtOpening} />
         <BringRobotIntoView
           robotId={robotId}
           sitesReady={sitesReady}
