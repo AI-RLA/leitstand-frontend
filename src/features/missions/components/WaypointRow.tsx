@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { compassBearing } from "@/lib/units";
+import { compassBearing, parseDecimal } from "@/lib/units";
 import type { WaypointFrame } from "./FrameChip";
 
 export interface WaypointDraft {
@@ -43,8 +43,6 @@ export function WaypointRow({
           <Numeric
             placeholder="Lat"
             value={waypoint.lat}
-            min={-90}
-            max={90}
             required
             onChange={(v) => onChange("lat", v)}
             className="w-24"
@@ -52,8 +50,6 @@ export function WaypointRow({
           <Numeric
             placeholder="Lon"
             value={waypoint.lon}
-            min={-180}
-            max={180}
             required
             onChange={(v) => onChange("lon", v)}
             className="w-24"
@@ -62,12 +58,10 @@ export function WaypointRow({
             placeholder="Hdg°"
             title="Heading in degrees, clockwise from north"
             value={waypoint.heading_deg}
-            min={0}
-            max={360}
             onChange={(v) => onChange("heading_deg", v)}
             onBlur={(v) => {
-              const deg = Number(v);
-              if (v !== "" && Number.isFinite(deg)) {
+              const deg = parseDecimal(v);
+              if (!Number.isNaN(deg)) {
                 onChange("heading_deg", String(compassBearing(deg)));
               }
             }}
@@ -118,8 +112,6 @@ function Numeric({
   onChange,
   placeholder,
   title,
-  min,
-  max,
   required,
   onBlur,
   className = "",
@@ -129,24 +121,21 @@ function Numeric({
   onBlur?: (v: string) => void;
   placeholder: string;
   title?: string;
-  min?: number;
-  max?: number;
   required?: boolean;
   className?: string;
 }) {
   return (
     <input
-      type="number"
-      step="any"
-      min={min}
-      max={max}
+      // A text field, because a number field drops a typed decimal comma in some browsers.
+      type="text"
+      inputMode="decimal"
       required={required}
       placeholder={placeholder}
       title={title}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur && ((e) => onBlur(e.target.value))}
-      className={`border border-border rounded px-2 py-1 text-ui-sm font-mono text-t1 bg-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${className}`}
+      className={`border border-border rounded px-2 py-1 text-ui-sm font-mono text-t1 bg-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition ${className}`}
     />
   );
 }

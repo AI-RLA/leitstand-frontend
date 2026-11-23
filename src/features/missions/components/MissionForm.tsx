@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { MissionStageList } from "./MissionStageList";
 import { MissionMapWorkspace } from "./MissionMapWorkspace";
-import { compassBearing } from "@/lib/units";
+import { compassBearing, parseDecimal } from "@/lib/units";
 import { anchorFromSite, latLonToLocal } from "../siteFrame";
 import type { WaypointFrame } from "./FrameChip";
 import {
@@ -53,11 +53,16 @@ function isEmptyWaypoint(w: WaypointDraft, frame: WaypointFrame): boolean {
 }
 
 function isValidNumber(v: string): boolean {
-  return Number.isFinite(parseFloat(v));
+  return !Number.isNaN(parseDecimal(v));
+}
+
+function inRange(v: string, min: number, max: number): boolean {
+  const n = parseDecimal(v);
+  return n >= min && n <= max;
 }
 
 function emptyOrNumber(v: string): boolean {
-  return v === "" || isValidNumber(v);
+  return v.trim() === "" || isValidNumber(v);
 }
 
 function navigationProblem(
@@ -68,14 +73,29 @@ function navigationProblem(
     return `Select a site for stage ${stage}`;
   }
   if (s.waypoints.length === 0) return `Add a waypoint to stage ${stage}`;
-  const complete = s.waypoints.every((w) =>
-    s.frame === "wgs84"
-      ? isValidNumber(w.lat) &&
-        isValidNumber(w.lon) &&
-        emptyOrNumber(w.heading_deg)
-      : isValidNumber(w.x) && isValidNumber(w.y) && emptyOrNumber(w.theta_deg),
+  const required = (w: WaypointDraft) =>
+    s.frame === "wgs84" ? [w.lat, w.lon] : [w.x, w.y];
+  const optionalValue = (w: WaypointDraft) =>
+    s.frame === "wgs84" ? w.heading_deg : w.theta_deg;
+  if (s.waypoints.some((w) => required(w).some((v) => v.trim() === ""))) {
+    return `Fill in every waypoint of stage ${stage}`;
+  }
+  const wrong = s.waypoints.findIndex(
+    (w) =>
+      !required(w).every(isValidNumber) || !emptyOrNumber(optionalValue(w)),
   );
-  return complete ? null : `Fill in every waypoint of stage ${stage}`;
+  if (wrong >= 0) {
+    return `Waypoint ${wrong + 1} of stage ${stage} has a value that is not a number`;
+  }
+  if (s.frame === "wgs84") {
+    const wi = s.waypoints.findIndex(
+      (w) => !inRange(w.lat, -90, 90) || !inRange(w.lon, -180, 180),
+    );
+    if (wi >= 0) {
+      return `Waypoint ${wi + 1} of stage ${stage} needs a latitude from -90 to 90 and a longitude from -180 to 180`;
+    }
+  }
+  return null;
 }
 
 // A coverage draft can be saved only as it was last planned: the backend plans from the inputs,
@@ -115,18 +135,18 @@ function toStageInput(s: StageDraft): StageInput {
       s.frame === "wgs84"
         ? s.waypoints.map((w) => ({
             kind: "wgs84" as const,
-            lat: parseFloat(w.lat),
-            lon: parseFloat(w.lon),
+            lat: parseDecimal(w.lat),
+            lon: parseDecimal(w.lon),
             // Saving with Enter skips the blur that shows the heading as a compass bearing.
-            heading_deg: w.heading_deg
-              ? compassBearing(parseFloat(w.heading_deg))
+            heading_deg: w.heading_deg.trim()
+              ? compassBearing(parseDecimal(w.heading_deg))
               : null,
           }))
         : s.waypoints.map((w) => ({
             kind: "site_local" as const,
             site_id: s.site_id,
-            x: parseFloat(w.x),
-            y: parseFloat(w.y),
+            x: parseDecimal(w.x),
+            y: parseDecimal(w.y),
             theta: thetaRadians(w),
           })),
   };

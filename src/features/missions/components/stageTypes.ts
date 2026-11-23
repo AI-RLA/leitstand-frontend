@@ -217,14 +217,14 @@ export function thetaDegText(radians: number): string {
 
 /** Return the radians a heading in degrees stands for, the stored ones while it is unchanged. */
 export function thetaRadians(w: WaypointDraft): number | null {
-  if (w.theta_deg === "") return null;
+  if (w.theta_deg.trim() === "") return null;
   if (
     w.theta_stored !== undefined &&
     w.theta_deg === thetaDegText(w.theta_stored)
   ) {
     return w.theta_stored;
   }
-  return degreesToRadians(parseFloat(w.theta_deg));
+  return degreesToRadians(parseDecimal(w.theta_deg));
 }
 
 export function emptyWaypoint(): WaypointDraft {
