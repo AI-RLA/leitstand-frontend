@@ -4,7 +4,7 @@ import { apiErrorMessage, type Field, type Robot } from "@/api/client";
 import { useRobots } from "@/api/robots";
 import { isSettled } from "@/api/settled";
 import { Input } from "@/components/ui/Input";
-import { formatArea } from "@/lib/units";
+import { formatArea, parseDecimal } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import {
   coverageInputs,
@@ -69,7 +69,7 @@ export function CoverageStageBody({
   const headlandDerived = stage.headland.from !== "manual";
   const typedRadius =
     stage.turning_radius.from === "manual"
-      ? parseFloat(stage.turning_radius.value)
+      ? parseDecimal(stage.turning_radius.value)
       : NaN;
   const belowRobot =
     robotRadius != null &&

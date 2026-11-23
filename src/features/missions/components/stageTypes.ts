@@ -5,7 +5,7 @@ import type {
   Mission,
   Robot,
 } from "@/api/client";
-import { degreesToRadians, radiansToDegrees } from "@/lib/units";
+import { degreesToRadians, parseDecimal, radiansToDegrees } from "@/lib/units";
 import type { WaypointFrame } from "./FrameChip";
 import type { WaypointDraft } from "./WaypointRow";
 
@@ -66,7 +66,7 @@ export type CoverageInputsWire = CoveragePreviewQuery;
 
 function numberOrNull(value: string): number | null | undefined {
   if (value.trim() === "") return null;
-  const n = parseFloat(value);
+  const n = parseDecimal(value);
   return Number.isNaN(n) ? undefined : n;
 }
 
