@@ -3,6 +3,7 @@ import { useFleet } from "@/stores/fleet";
 
 type TopicHandler = (topic: string, payload: unknown) => void;
 const _listeners = new Map<string, Set<TopicHandler>>();
+const _reconnectListeners = new Set<() => void>();
 let _wsHandle: WsHandle | null = null;
 
 export function addTopicListener(
@@ -20,6 +21,13 @@ export function addTopicListener(
       _listeners.delete(topicPrefix);
       _wsHandle?.unsubscribe(topicPrefix);
     }
+  };
+}
+
+export function addReconnectListener(fn: () => void): () => void {
+  _reconnectListeners.add(fn);
+  return () => {
+    _reconnectListeners.delete(fn);
   };
 }
 
@@ -91,6 +99,7 @@ function isRobotStatusPayload(p: unknown): p is { status: RobotStatus } {
 export function connectWs(): WsHandle {
   let ws: WebSocket | null = null;
   let reconnectAfter = 500;
+  let connectedBefore = false;
   let stopped = false;
   let lastPing = Date.now();
   let attempts = 0;
@@ -125,6 +134,17 @@ export function connectWs(): WsHandle {
       for (const topic of topics) {
         ws!.send(JSON.stringify({ type: "subscribe", topic }));
       }
+      // Events sent while the socket was down are lost, so queries are refetched on reconnect.
+      if (connectedBefore) {
+        for (const fn of _reconnectListeners) {
+          try {
+            fn();
+          } catch (err) {
+            console.warn("[ws] reconnect listener failed:", err);
+          }
+        }
+      }
+      connectedBefore = true;
     });
 
     ws.addEventListener("message", (ev) => {
