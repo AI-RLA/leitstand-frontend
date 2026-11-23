@@ -3,15 +3,14 @@ import { Plus, X } from "lucide-react";
 import { StageRow } from "./StageRow";
 import { StageKindSelect } from "./StageKindSelect";
 import type { CoverageStageDraft, StageDraft, StageKind } from "./stageTypes";
-import type { WaypointDraft } from "./WaypointRow";
+import type { WaypointField } from "./WaypointRow";
 import type { WaypointFrame } from "./FrameChip";
-import type { Field, Robot, Site } from "@/api/client";
+import type { Field, Site } from "@/api/client";
 
 interface MissionStageListProps {
   stages: StageDraft[];
   sites: Site[];
   fields: Field[];
-  robots: Robot[];
   addingIndex: number | null;
   onChangeCoverage: (
     stageIndex: number,
@@ -22,7 +21,7 @@ interface MissionStageListProps {
   onChangeWaypoint: (
     stageIndex: number,
     waypointIndex: number,
-    field: keyof WaypointDraft,
+    field: WaypointField,
     value: string,
   ) => void;
   onAddWaypoint: (stageIndex: number) => void;
@@ -38,7 +37,9 @@ interface MissionStageListProps {
 export function MissionStageList(props: MissionStageListProps) {
   // The kind is chosen before a row exists: a row's body is shaped by its kind, so a row cannot
   // change kind without losing its waypoints or its plan.
-  const [choosingKind, setChoosingKind] = useState(false);
+  // Only a choice opened by a click takes the focus, so a new mission keeps it on its name.
+  const [opened, setOpened] = useState(false);
+  const empty = props.stages.length === 0;
 
   return (
     <div className="flex flex-col gap-2">
@@ -49,7 +50,6 @@ export function MissionStageList(props: MissionStageListProps) {
           stage={stage}
           sites={props.sites}
           fields={props.fields}
-          robots={props.robots}
           totalStages={props.stages.length}
           isAdding={props.addingIndex === i}
           onChangeCoverage={(patch) => props.onChangeCoverage(i, patch)}
@@ -65,7 +65,7 @@ export function MissionStageList(props: MissionStageListProps) {
           onCancelAddMode={props.onCancelAddMode}
         />
       ))}
-      {choosingKind ? (
+      {opened || empty ? (
         <div className="bg-white border border-primary rounded-lg px-3 py-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="text-ui-xs uppercase tracking-wider font-semibold text-t3">
@@ -73,26 +73,28 @@ export function MissionStageList(props: MissionStageListProps) {
             </span>
             <StageKindSelect
               value=""
-              autoFocus
+              autoFocus={opened}
               onChange={(kind) => {
                 props.onAddStage(kind);
-                setChoosingKind(false);
+                setOpened(false);
               }}
             />
           </div>
-          <button
-            type="button"
-            aria-label="Cancel"
-            onClick={() => setChoosingKind(false)}
-            className="text-t3 hover:text-t1 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          {opened && (
+            <button
+              type="button"
+              aria-label="Cancel adding a stage"
+              onClick={() => setOpened(false)}
+              className="text-t3 hover:text-t1 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       ) : (
         <button
           type="button"
-          onClick={() => setChoosingKind(true)}
+          onClick={() => setOpened(true)}
           className="text-ui-sm text-t2 border border-dashed border-border rounded-lg px-4 py-2 hover:bg-white transition-colors inline-flex items-center gap-1.5 self-start"
         >
           <Plus className="w-3.5 h-3.5" />

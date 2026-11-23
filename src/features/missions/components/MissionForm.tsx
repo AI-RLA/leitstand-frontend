@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { MissionStageList } from "./MissionStageList";
 import { MissionMapWorkspace } from "./MissionMapWorkspace";
+import { compassBearing, parseDecimal } from "@/lib/units";
 import { anchorFromSite, latLonToLocal } from "../siteFrame";
 import type { WaypointFrame } from "./FrameChip";
 import {
@@ -20,8 +21,9 @@ import {
   type NavigationStageDraft,
   type StageDraft,
   type StageKind,
+  thetaRadians,
 } from "./stageTypes";
-import type { WaypointDraft } from "./WaypointRow";
+import type { WaypointDraft, WaypointField } from "./WaypointRow";
 
 export interface MissionFormValues {
   name: string;
@@ -44,31 +46,78 @@ interface MissionFormProps {
   onCancel: () => void;
 }
 
-function isEmptyWaypoint(w: WaypointDraft): boolean {
-  return !w.lat && !w.lon && !w.heading_deg && !w.x && !w.y && !w.theta;
+function isEmptyWaypoint(w: WaypointDraft, frame: WaypointFrame): boolean {
+  return frame === "wgs84"
+    ? !w.lat && !w.lon && !w.heading_deg
+    : !w.x && !w.y && !w.theta_deg;
 }
 
 function isValidNumber(v: string): boolean {
-  return v !== "" && !Number.isNaN(parseFloat(v));
+  return !Number.isNaN(parseDecimal(v));
 }
 
-function navigationValid(s: NavigationStageDraft): boolean {
-  if (s.waypoints.length === 0) return false;
-  if (s.frame === "wgs84") {
-    return s.waypoints.every(
-      (w) => isValidNumber(w.lat) && isValidNumber(w.lon),
-    );
+function inRange(v: string, min: number, max: number): boolean {
+  const n = parseDecimal(v);
+  return n >= min && n <= max;
+}
+
+function emptyOrNumber(v: string): boolean {
+  return v.trim() === "" || isValidNumber(v);
+}
+
+function navigationProblem(
+  s: NavigationStageDraft,
+  stage: number,
+): string | null {
+  if (s.frame === "site_local" && s.site_id === "") {
+    return `Select a site for stage ${stage}`;
   }
-  return (
-    s.site_id !== "" &&
-    s.waypoints.every((w) => isValidNumber(w.x) && isValidNumber(w.y))
+  if (s.waypoints.length === 0) return `Add a waypoint to stage ${stage}`;
+  const required = (w: WaypointDraft) =>
+    s.frame === "wgs84" ? [w.lat, w.lon] : [w.x, w.y];
+  const optionalValue = (w: WaypointDraft) =>
+    s.frame === "wgs84" ? w.heading_deg : w.theta_deg;
+  if (s.waypoints.some((w) => required(w).some((v) => v.trim() === ""))) {
+    return `Fill in every waypoint of stage ${stage}`;
+  }
+  const wrong = s.waypoints.findIndex(
+    (w) =>
+      !required(w).every(isValidNumber) || !emptyOrNumber(optionalValue(w)),
   );
+  if (wrong >= 0) {
+    return `Waypoint ${wrong + 1} of stage ${stage} has a value that is not a number`;
+  }
+  if (s.frame === "wgs84") {
+    const wi = s.waypoints.findIndex(
+      (w) => !inRange(w.lat, -90, 90) || !inRange(w.lon, -180, 180),
+    );
+    if (wi >= 0) {
+      return `Waypoint ${wi + 1} of stage ${stage} needs a latitude from -90 to 90 and a longitude from -180 to 180`;
+    }
+  }
+  return null;
 }
 
 // A coverage draft can be saved only as it was last planned: the backend plans from the inputs,
 // so unplanned or edited inputs would store a path the operator never saw.
-function coverageSavable(s: CoverageStageDraft): boolean {
-  return s.planned !== null && !s.dirty;
+function coverageProblem(s: CoverageStageDraft, stage: number): string | null {
+  if (s.planned === null || s.dirty) return `Plan stage ${stage} before saving`;
+  const built = coverageInputs(s);
+  return "error" in built ? `${built.error} in stage ${stage}` : null;
+}
+
+/** Return the first thing that keeps the mission from being saved, in the order the page shows. */
+function saveBlocker(name: string, stages: StageDraft[]): string | null {
+  if (name.trim() === "") return "Enter a name";
+  if (stages.length === 0) return "Add a stage";
+  for (const [i, s] of stages.entries()) {
+    const problem =
+      s.kind === "coverage"
+        ? coverageProblem(s, i + 1)
+        : navigationProblem(s, i + 1);
+    if (problem) return problem;
+  }
+  return null;
 }
 
 function toStageInput(s: StageDraft): StageInput {
@@ -86,16 +135,19 @@ function toStageInput(s: StageDraft): StageInput {
       s.frame === "wgs84"
         ? s.waypoints.map((w) => ({
             kind: "wgs84" as const,
-            lat: parseFloat(w.lat),
-            lon: parseFloat(w.lon),
-            heading_deg: w.heading_deg ? parseFloat(w.heading_deg) : null,
+            lat: parseDecimal(w.lat),
+            lon: parseDecimal(w.lon),
+            // Saving with Enter skips the blur that shows the heading as a compass bearing.
+            heading_deg: w.heading_deg.trim()
+              ? compassBearing(parseDecimal(w.heading_deg))
+              : null,
           }))
         : s.waypoints.map((w) => ({
             kind: "site_local" as const,
             site_id: s.site_id,
-            x: parseFloat(w.x),
-            y: parseFloat(w.y),
-            theta: w.theta ? parseFloat(w.theta) : null,
+            x: parseDecimal(w.x),
+            y: parseDecimal(w.y),
+            theta: thetaRadians(w),
           })),
   };
 }
@@ -163,12 +215,9 @@ export function MissionForm({
 
   function setStageFrame(si: number, frame: WaypointFrame) {
     setStages((prev) =>
-      updateNavigation(prev, si, (s) => ({
-        ...s,
-        frame,
-        site_id: "",
-        waypoints: [emptyWaypoint()],
-      })),
+      // Each waypoint holds both frames' fields and only the active frame's are saved, so the
+      // other frame's values are kept for switching back.
+      updateNavigation(prev, si, (s) => ({ ...s, frame })),
     );
     if (addingIndex === si) setAddingIndex(null);
   }
@@ -182,7 +231,7 @@ export function MissionForm({
   function updateWaypoint(
     si: number,
     wi: number,
-    field: keyof WaypointDraft,
+    field: WaypointField,
     value: string,
   ) {
     setStages((prev) =>
@@ -250,29 +299,26 @@ export function MissionForm({
         const stage = prev[stageIndex];
         if (!stage || stage.kind !== "navigation") return prev;
 
-        let next: WaypointDraft;
+        let picked: Partial<WaypointDraft>;
         if (stage.frame === "wgs84") {
-          next = {
-            ...emptyWaypoint(),
-            lat: lat.toFixed(6),
-            lon: lon.toFixed(6),
-          };
+          picked = { lat: lat.toFixed(6), lon: lon.toFixed(6) };
         } else {
           const site = sites.find((s) => s.site_id === stage.site_id);
           if (!site) return prev;
           const local = latLonToLocal(anchorFromSite(site), lat, lon);
-          next = {
-            ...emptyWaypoint(),
-            x: local.x.toFixed(3),
-            y: local.y.toFixed(3),
-          };
+          picked = { x: local.x.toFixed(3), y: local.y.toFixed(3) };
         }
 
-        const last = stage.waypoints[stage.waypoints.length - 1];
+        // The pick fills the first row still empty in this frame and keeps its other frame's values.
+        const empty = stage.waypoints.findIndex((w) =>
+          isEmptyWaypoint(w, stage.frame),
+        );
         const newWaypoints =
-          last && isEmptyWaypoint(last)
-            ? [...stage.waypoints.slice(0, -1), next]
-            : [...stage.waypoints, next];
+          empty >= 0
+            ? stage.waypoints.map((w, i) =>
+                i === empty ? { ...w, ...picked } : w,
+              )
+            : [...stage.waypoints, { ...emptyWaypoint(), ...picked }];
 
         return updateNavigation(prev, stageIndex, (s) => ({
           ...s,
@@ -283,18 +329,11 @@ export function MissionForm({
     [addingIndex, sites],
   );
 
-  const unplanned = stages.some(
-    (s) => s.kind === "coverage" && !coverageSavable(s),
-  );
-  const canSubmit =
-    name.trim().length > 0 &&
-    stages.length > 0 &&
-    !unplanned &&
-    stages.every((s) => s.kind === "coverage" || navigationValid(s));
+  const blocker = saveBlocker(name, stages);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (blocker !== null) return;
     await onSubmit({
       name: name.trim(),
       description: description.trim() || null,
@@ -302,12 +341,6 @@ export function MissionForm({
       assignedRobotId: robotId,
     });
   }
-
-  const waypointCount = stages.reduce(
-    (sum, s) => sum + (s.kind === "navigation" ? s.waypoints.length : 0),
-    0,
-  );
-  const coverageCount = stages.filter((s) => s.kind === "coverage").length;
 
   return (
     <form
@@ -362,7 +395,6 @@ export function MissionForm({
             stages={stages}
             sites={sites}
             fields={fields}
-            robots={robots}
             addingIndex={addingIndex}
             onChangeCoverage={changeCoverage}
             onChangeStageFrame={setStageFrame}
@@ -380,39 +412,25 @@ export function MissionForm({
         </div>
 
         <div className="border-t border-border bg-white px-4 py-3 shrink-0 flex items-center justify-between gap-3">
-          <div className="text-ui-xs text-t3 tabular-nums">
+          <div className="text-ui-xs text-t3 tabular-nums shrink-0">
             <span className="font-semibold text-t2">{stages.length}</span> stage
             {stages.length === 1 ? "" : "s"}
-            <span className="mx-1.5">·</span>
-            <span className="font-semibold text-t2">{waypointCount}</span>{" "}
-            waypoint{waypointCount === 1 ? "" : "s"}
-            {coverageCount > 0 && (
-              <>
-                <span className="mx-1.5">·</span>
-                <span className="font-semibold text-t2">
-                  {coverageCount}
-                </span>{" "}
-                coverage
-              </>
-            )}
           </div>
-          <div className="flex items-center gap-2">
-            {unplanned && (
-              <span className="text-ui-xs text-t3">
-                Plan every coverage stage before saving
-              </span>
-            )}
+          <div className="flex items-center gap-2 min-w-0">
+            <span aria-live="polite" className="text-ui-xs text-t3 text-right">
+              {blocker}
+            </span>
             <button
               type="button"
               onClick={onCancel}
-              className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] transition-colors"
+              className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] transition-colors shrink-0"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!canSubmit || isPending}
-              className="text-ui-sm bg-primary text-white px-4 py-1.5 rounded-md font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+              disabled={blocker !== null || isPending}
+              className="text-ui-sm bg-primary text-white px-4 py-1.5 rounded-md font-medium hover:opacity-90 disabled:opacity-50 transition-opacity shrink-0"
             >
               {isPending ? pendingLabel : submitLabel}
             </button>

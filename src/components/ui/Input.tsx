@@ -1,7 +1,7 @@
-import type { InputHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends ComponentProps<"input"> {
   // Render the value in the monospace face — used for coordinate / ref fields.
   mono?: boolean;
 }

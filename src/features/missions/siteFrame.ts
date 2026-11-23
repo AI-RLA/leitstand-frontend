@@ -1,4 +1,6 @@
 import type { Site } from "@/api/client";
+import { EARTH_RADIUS_M } from "@/lib/geo";
+import { degreesToRadians } from "@/lib/units";
 
 export interface SiteAnchor {
   lat: number;
@@ -14,8 +16,7 @@ export function anchorFromSite(site: Site): SiteAnchor {
   };
 }
 
-const EARTH_R = 6371000;
-const M_PER_DEG = (Math.PI / 180) * EARTH_R;
+const M_PER_DEG = degreesToRadians(1) * EARTH_RADIUS_M;
 
 // Tangent-plane projection between WGS84 and site-local frame.
 // Local frame: x = forward (direction of anchor heading), y = right of x.
@@ -26,10 +27,10 @@ export function latLonToLocal(
   lat: number,
   lon: number,
 ): { x: number; y: number } {
-  const headingRad = (anchor.headingDeg * Math.PI) / 180;
+  const headingRad = degreesToRadians(anchor.headingDeg);
   const dN = (lat - anchor.lat) * M_PER_DEG;
   const dE =
-    (lon - anchor.lon) * M_PER_DEG * Math.cos((anchor.lat * Math.PI) / 180);
+    (lon - anchor.lon) * M_PER_DEG * Math.cos(degreesToRadians(anchor.lat));
   const x = dN * Math.cos(headingRad) + dE * Math.sin(headingRad);
   const y = -dN * Math.sin(headingRad) + dE * Math.cos(headingRad);
   return { x, y };
@@ -40,11 +41,11 @@ export function localToLatLon(
   x: number,
   y: number,
 ): { lat: number; lon: number } {
-  const headingRad = (anchor.headingDeg * Math.PI) / 180;
+  const headingRad = degreesToRadians(anchor.headingDeg);
   const dN = x * Math.cos(headingRad) - y * Math.sin(headingRad);
   const dE = x * Math.sin(headingRad) + y * Math.cos(headingRad);
   const lat = anchor.lat + dN / M_PER_DEG;
   const lon =
-    anchor.lon + dE / M_PER_DEG / Math.cos((anchor.lat * Math.PI) / 180);
+    anchor.lon + dE / M_PER_DEG / Math.cos(degreesToRadians(anchor.lat));
   return { lat, lon };
 }

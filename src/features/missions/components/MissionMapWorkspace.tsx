@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { parseDecimal } from "@/lib/units";
 import { Layer, Source, useMap } from "@vis.gl/react-maplibre";
 import type {
   CircleLayerSpecification,
@@ -58,14 +59,14 @@ function resolveWaypoints(
       const w = stage.waypoints[wi];
       let coord: [number, number] | null = null;
       if (stage.frame === "wgs84") {
-        const lat = parseFloat(w.lat);
-        const lon = parseFloat(w.lon);
+        const lat = parseDecimal(w.lat);
+        const lon = parseDecimal(w.lon);
         if (Number.isFinite(lat) && Number.isFinite(lon)) {
           coord = [lon, lat];
         }
       } else if (stage.frame === "site_local" && stage.site_id) {
-        const x = parseFloat(w.x);
-        const y = parseFloat(w.y);
+        const x = parseDecimal(w.x);
+        const y = parseDecimal(w.y);
         const site = sites.find((s) => s.site_id === stage.site_id);
         if (site && Number.isFinite(x) && Number.isFinite(y)) {
           const ll = localToLatLon(anchorFromSite(site), x, y);
@@ -373,13 +374,13 @@ export function MissionMapWorkspace({
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white border border-primary rounded-md shadow-md flex items-center gap-2 px-3 py-1.5">
           <Crosshair className="w-3.5 h-3.5 text-primary" />
           <span className="text-ui-sm text-t1">
-            Click map to add waypoint to{" "}
-            <span className="font-semibold">Stage {addingIndex + 1}</span>
+            Click the map to add waypoints to{" "}
+            <span className="font-semibold">stage {addingIndex + 1}</span>
           </span>
           <button
             type="button"
             onClick={onCancelAddMode}
-            aria-label="Cancel"
+            aria-label="Stop adding waypoints"
             className="text-t3 hover:text-t1 transition-colors ml-1"
           >
             <X className="w-3.5 h-3.5" />

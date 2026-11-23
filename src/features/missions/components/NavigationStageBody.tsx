@@ -1,6 +1,6 @@
 import { Plus, Crosshair } from "lucide-react";
 import { FrameChip, type WaypointFrame } from "./FrameChip";
-import { WaypointRow, type WaypointDraft } from "./WaypointRow";
+import { WaypointRow, type WaypointField } from "./WaypointRow";
 import type { NavigationStageDraft } from "./stageTypes";
 import type { Site } from "@/api/client";
 
@@ -12,7 +12,7 @@ interface NavigationStageBodyProps {
   onChangeSiteId: (id: string) => void;
   onChangeWaypoint: (
     waypointIndex: number,
-    field: keyof WaypointDraft,
+    field: WaypointField,
     value: string,
   ) => void;
   onAddWaypoint: () => void;
@@ -97,7 +97,7 @@ export function NavigationStageBody({
             className="text-ui-xs font-medium bg-primary/10 text-[#15803D] border border-primary/30 rounded px-2.5 py-1 inline-flex items-center gap-1"
           >
             <Crosshair className="w-3 h-3" />
-            Click map · cancel
+            Stop picking
           </button>
         ) : (
           <button

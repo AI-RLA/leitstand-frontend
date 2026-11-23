@@ -8,8 +8,8 @@ import {
   type StageDraft,
 } from "./stageTypes";
 import type { WaypointFrame } from "./FrameChip";
-import type { WaypointDraft } from "./WaypointRow";
-import type { Field, Robot, Site } from "@/api/client";
+import type { WaypointField } from "./WaypointRow";
+import type { Field, Site } from "@/api/client";
 
 // Re-export for convenience so consumers can keep importing `StageDraft`
 // from this file. The discriminated union itself lives in stageTypes.ts.
@@ -20,7 +20,6 @@ interface StageRowProps {
   stage: StageDraft;
   sites: Site[];
   fields: Field[];
-  robots: Robot[];
   totalStages: number;
   isAdding: boolean;
   onChangeCoverage: (patch: Partial<CoverageStageDraft>) => void;
@@ -28,7 +27,7 @@ interface StageRowProps {
   onChangeSiteId: (id: string) => void;
   onChangeWaypoint: (
     waypointIndex: number,
-    field: keyof WaypointDraft,
+    field: WaypointField,
     value: string,
   ) => void;
   onAddWaypoint: () => void;
@@ -45,7 +44,6 @@ export function StageRow({
   stage,
   sites,
   fields,
-  robots,
   totalStages,
   isAdding,
   onChangeCoverage,
@@ -101,7 +99,6 @@ export function StageRow({
         <CoverageStageBody
           stage={stage}
           fields={fields}
-          robots={robots}
           onChange={onChangeCoverage}
         />
       )}
