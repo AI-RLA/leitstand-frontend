@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { MissionStageList } from "./MissionStageList";
 import { MissionMapWorkspace } from "./MissionMapWorkspace";
+import { compassBearing } from "@/lib/units";
 import { anchorFromSite, latLonToLocal } from "../siteFrame";
 import type { WaypointFrame } from "./FrameChip";
 import {
@@ -114,7 +115,10 @@ function toStageInput(s: StageDraft): StageInput {
             kind: "wgs84" as const,
             lat: parseFloat(w.lat),
             lon: parseFloat(w.lon),
-            heading_deg: w.heading_deg ? parseFloat(w.heading_deg) : null,
+            // Saving with Enter skips the blur that shows the heading as a compass bearing.
+            heading_deg: w.heading_deg
+              ? compassBearing(parseFloat(w.heading_deg))
+              : null,
           }))
         : s.waypoints.map((w) => ({
             kind: "site_local" as const,

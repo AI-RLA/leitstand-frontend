@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { compassBearing } from "@/lib/units";
 import type { WaypointFrame } from "./FrameChip";
 
 export interface WaypointDraft {
@@ -59,10 +60,17 @@ export function WaypointRow({
           />
           <Numeric
             placeholder="Hdg°"
+            title="Heading in degrees, clockwise from north"
             value={waypoint.heading_deg}
-            min={-180}
-            max={180}
+            min={0}
+            max={360}
             onChange={(v) => onChange("heading_deg", v)}
+            onBlur={(v) => {
+              const deg = Number(v);
+              if (v !== "" && Number.isFinite(deg)) {
+                onChange("heading_deg", String(compassBearing(deg)));
+              }
+            }}
             className="w-16"
           />
         </>
@@ -113,10 +121,12 @@ function Numeric({
   min,
   max,
   required,
+  onBlur,
   className = "",
 }: {
   value: string;
   onChange: (v: string) => void;
+  onBlur?: (v: string) => void;
   placeholder: string;
   title?: string;
   min?: number;
@@ -135,6 +145,7 @@ function Numeric({
       title={title}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur && ((e) => onBlur(e.target.value))}
       className={`border border-border rounded px-2 py-1 text-ui-sm font-mono text-t1 bg-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${className}`}
     />
   );

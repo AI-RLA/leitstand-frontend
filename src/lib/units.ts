@@ -7,6 +7,11 @@ export function parseDecimal(text: string): number {
   return DECIMAL.test(trimmed) ? Number(trimmed.replace(",", ".")) : NaN;
 }
 
+/** Return a heading as a compass bearing in [0, 360), so -90 becomes 270 and 360 becomes 0. */
+export function compassBearing(degrees: number): number {
+  return ((degrees % 360) + 360) % 360;
+}
+
 export function degreesToRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;
 }
