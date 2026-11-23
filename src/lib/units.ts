@@ -1,3 +1,11 @@
+export function degreesToRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
+export function radiansToDegrees(radians: number): number {
+  return (radians * 180) / Math.PI;
+}
+
 /** An area as an operator reads it: hectares from one hectare up, square metres below. */
 export function formatArea(m2: number): string {
   return m2 >= 10_000

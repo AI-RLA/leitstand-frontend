@@ -5,7 +5,6 @@ import { ChevronLeft } from "lucide-react";
 import { api, apiErrorMessage } from "@/api/client";
 import { MISSIONS_KEY, useCreateMission } from "@/api/missions";
 import { MissionForm, type MissionFormValues } from "./components/MissionForm";
-import { emptyNavigationDraft } from "./components/stageTypes";
 
 export function MissionNew() {
   const navigate = useNavigate();
@@ -41,7 +40,7 @@ export function MissionNew() {
           await api.assignMission(id, values.assignedRobotId);
         } catch (e) {
           setError(
-            `The mission was created, but ${values.assignedRobotId} was refused: ${apiErrorMessage(e)}. Pick another robot or none, then save again to open it.`,
+            `The mission was created, but ${values.assignedRobotId} was refused: ${apiErrorMessage(e)}. Select another robot or none, then save again to open it.`,
           );
           return;
         }
@@ -71,7 +70,6 @@ export function MissionNew() {
           </h2>
         </>
       }
-      initialStages={[emptyNavigationDraft()]}
       submitLabel="Create mission"
       pendingLabel="Creating…"
       isPending={busy}

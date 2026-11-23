@@ -373,13 +373,13 @@ export function MissionMapWorkspace({
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white border border-primary rounded-md shadow-md flex items-center gap-2 px-3 py-1.5">
           <Crosshair className="w-3.5 h-3.5 text-primary" />
           <span className="text-ui-sm text-t1">
-            Click map to add waypoint to{" "}
-            <span className="font-semibold">Stage {addingIndex + 1}</span>
+            Click the map to add waypoints to{" "}
+            <span className="font-semibold">stage {addingIndex + 1}</span>
           </span>
           <button
             type="button"
             onClick={onCancelAddMode}
-            aria-label="Cancel"
+            aria-label="Stop adding waypoints"
             className="text-t3 hover:text-t1 transition-colors ml-1"
           >
             <X className="w-3.5 h-3.5" />

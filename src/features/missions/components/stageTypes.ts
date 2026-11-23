@@ -5,6 +5,7 @@ import type {
   Mission,
   Robot,
 } from "@/api/client";
+import { degreesToRadians, radiansToDegrees } from "@/lib/units";
 import type { WaypointFrame } from "./FrameChip";
 import type { WaypointDraft } from "./WaypointRow";
 
@@ -20,15 +21,25 @@ export interface NavigationStageDraft {
   waypoints: WaypointDraft[];
 }
 
+// A manual value is seeded when it was copied from the previous robot rather than typed.
+export type RadiusEntry =
+  | { from: "robot" }
+  | { from: "manual"; value: string; seeded?: boolean };
+export type HeadlandEntry =
+  | { from: "radius" }
+  | { from: "manual"; value: string };
+
 export interface CoverageStageDraft {
   kind: "coverage";
   stage_id?: string;
   field_id: string;
   operation_width_m: string;
-  // null: the machine values are typed by hand rather than read from a robot's factsheet.
+  // null: the machine values are entered manually rather than read from a robot's factsheet.
   params_robot_id: string | null;
-  turning_radius_m: string;
-  headland_width_m: string;
+  // "robot" plans with the robot's own radius, so the plan records it as the robot's value.
+  turning_radius: RadiusEntry;
+  // "radius" leaves the headland as deep as the turning radius, which the planner applies itself.
+  headland: HeadlandEntry;
   swath_angle_deg: string;
   allow_overlap: boolean;
   // The preview the operator last planned, or the stored stage when loaded; null until planned.
@@ -59,26 +70,33 @@ function numberOrNull(value: string): number | null | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
+/** Parse a value entered manually, null for one read from its source, or name what is wrong. */
+function metres(
+  entry: RadiusEntry | HeadlandEntry,
+  name: string,
+): { value: number | null } | { error: string } {
+  if (entry.from !== "manual") return { value: null };
+  const value = numberOrNull(entry.value);
+  if (value === null) return { error: `Enter the ${name} in metres` };
+  if (value === undefined || value < 0) {
+    return { error: `The ${name} must be a number of metres` };
+  }
+  return { value };
+}
+
 /** Turn a draft into the wire inputs shared by the preview and the stage input, or name what is missing. */
 export function coverageInputs(
   d: CoverageStageDraft,
 ): { inputs: CoverageInputsWire } | { error: string } {
-  if (!d.field_id) return { error: "Choose a field" };
+  if (!d.field_id) return { error: "Select a field" };
   const width = numberOrNull(d.operation_width_m);
   if (width === null || width === undefined || width <= 0) {
-    return { error: "Enter the implement width in metres" };
+    return { error: "Enter the working width in metres" };
   }
-  const radius = numberOrNull(d.turning_radius_m);
-  if (radius === undefined || (radius !== null && radius < 0)) {
-    return { error: "The turning radius must be a number of metres" };
-  }
-  if (d.params_robot_id === null && radius === null) {
-    return { error: "Enter a turning radius or choose a robot" };
-  }
-  const headland = numberOrNull(d.headland_width_m);
-  if (headland === undefined || (headland !== null && headland < 0)) {
-    return { error: "The headland must be a number of metres" };
-  }
+  const radius = metres(d.turning_radius, "turning radius");
+  if ("error" in radius) return radius;
+  const headland = metres(d.headland, "headland width");
+  if ("error" in headland) return headland;
   const angle = numberOrNull(d.swath_angle_deg);
   if (angle === undefined || (angle !== null && (angle < 0 || angle >= 180))) {
     return { error: "The swath direction is a bearing from 0 to 179 degrees" };
@@ -88,8 +106,8 @@ export function coverageInputs(
       field_id: d.field_id,
       operation_width_m: width,
       params_robot_id: d.params_robot_id,
-      turning_radius_m: radius,
-      headland_width_m: headland,
+      turning_radius_m: radius.value,
+      headland_width_m: headland.value,
       swath_angle_deg: angle,
       allow_overlap: d.allow_overlap,
     },
@@ -99,6 +117,28 @@ export function coverageInputs(
 export function robotTurningRadius(robot: Robot | undefined): string {
   const radius = robot?.factsheet?.physical_parameters?.min_turning_radius_m;
   return radius == null ? "" : String(radius);
+}
+
+/** Return the radius a draft shows: the one entered, an unchanged plan's own, else the robot's. */
+export function shownTurningRadius(
+  d: CoverageStageDraft,
+  robot: Robot | undefined,
+): string {
+  if (d.turning_radius.from === "manual") return d.turning_radius.value;
+  // The robot's factsheet may have changed since the plan was made.
+  if (d.planned && !d.dirty) {
+    return String(d.planned.provenance.params.turning_radius_m);
+  }
+  return robotTurningRadius(robot);
+}
+
+export function shownHeadland(
+  d: CoverageStageDraft,
+  robot: Robot | undefined,
+): string {
+  return d.headland.from === "radius"
+    ? shownTurningRadius(d, robot)
+    : d.headland.value;
 }
 
 export function emptyCoverageDraft(
@@ -111,8 +151,10 @@ export function emptyCoverageDraft(
     field_id: "",
     operation_width_m: "",
     params_robot_id: robot ? paramsRobotId : null,
-    turning_radius_m: "",
-    headland_width_m: "",
+    turning_radius: robotTurningRadius(robot)
+      ? { from: "robot" }
+      : { from: "manual", value: "" },
+    headland: { from: "radius" },
     swath_angle_deg: "",
     allow_overlap: false,
     planned: null,
@@ -131,17 +173,17 @@ export function coverageDraftFrom(stage: CoverageStage): CoverageStageDraft {
     field_id: provenance.field_id,
     operation_width_m: String(params.operation_width_m),
     params_robot_id: provenance.planned_for_robot_id ?? null,
-    // A value that came from the robot or the planner stays blank, so saving again does not
-    // pin it by hand.
-    turning_radius_m: (sources.turning_radius_m ?? "manual").startsWith(
+    // The recorded sources decide what is sent again, so a save never turns the robot's value
+    // into a manual one.
+    turning_radius: (sources.turning_radius_m ?? "manual").startsWith(
       "factsheet:",
     )
-      ? ""
-      : String(params.turning_radius_m),
-    headland_width_m:
+      ? { from: "robot" }
+      : { from: "manual", value: String(params.turning_radius_m) },
+    headland:
       sources.headland_width_m === "turning_radius"
-        ? ""
-        : String(params.headland_width_m),
+        ? { from: "radius" }
+        : { from: "manual", value: String(params.headland_width_m) },
     swath_angle_deg:
       sources.swath_angle_deg === "manual" && params.swath_angle_deg != null
         ? String(params.swath_angle_deg)
@@ -169,8 +211,24 @@ export function coverageStageInput(
   };
 }
 
+export function thetaDegText(radians: number): string {
+  return String(Number(radiansToDegrees(radians).toFixed(2)));
+}
+
+/** Return the radians a heading in degrees stands for, the stored ones while it is unchanged. */
+export function thetaRadians(w: WaypointDraft): number | null {
+  if (w.theta_deg === "") return null;
+  if (
+    w.theta_stored !== undefined &&
+    w.theta_deg === thetaDegText(w.theta_stored)
+  ) {
+    return w.theta_stored;
+  }
+  return degreesToRadians(parseFloat(w.theta_deg));
+}
+
 export function emptyWaypoint(): WaypointDraft {
-  return { lat: "", lon: "", heading_deg: "", x: "", y: "", theta: "" };
+  return { lat: "", lon: "", heading_deg: "", x: "", y: "", theta_deg: "" };
 }
 
 export function emptyNavigationDraft(): NavigationStageDraft {
@@ -203,7 +261,7 @@ export function stagesToDrafts(stages: Mission["stages"]): StageDraft[] {
                 heading_deg: w.heading_deg != null ? String(w.heading_deg) : "",
                 x: "",
                 y: "",
-                theta: "",
+                theta_deg: "",
               }
             : {
                 lat: "",
@@ -211,7 +269,8 @@ export function stagesToDrafts(stages: Mission["stages"]): StageDraft[] {
                 heading_deg: "",
                 x: String(w.x),
                 y: String(w.y),
-                theta: w.theta != null ? String(w.theta) : "",
+                theta_deg: w.theta != null ? thetaDegText(w.theta) : "",
+                theta_stored: w.theta ?? undefined,
               },
       ),
     };

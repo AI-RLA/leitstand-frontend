@@ -7,15 +7,20 @@ export interface WaypointDraft {
   heading_deg: string;
   x: string;
   y: string;
-  theta: string;
+  // Degrees for the operator, sent as radians, which is what the API and the robot use.
+  theta_deg: string;
+  // The radians a loaded waypoint holds, sent back as they are while theta_deg still shows them.
+  theta_stored?: number;
 }
+
+export type WaypointField = Exclude<keyof WaypointDraft, "theta_stored">;
 
 interface WaypointRowProps {
   frame: WaypointFrame;
   index: number;
   waypoint: WaypointDraft;
   canRemove: boolean;
-  onChange: (field: keyof WaypointDraft, value: string) => void;
+  onChange: (field: WaypointField, value: string) => void;
   onRemove: () => void;
 }
 
@@ -78,9 +83,10 @@ export function WaypointRow({
             className="w-20"
           />
           <Numeric
-            placeholder="θ"
-            value={waypoint.theta}
-            onChange={(v) => onChange("theta", v)}
+            placeholder="θ°"
+            title="Heading in degrees, counter-clockwise from the site's x axis"
+            value={waypoint.theta_deg}
+            onChange={(v) => onChange("theta_deg", v)}
             className="w-16"
           />
         </>
@@ -103,6 +109,7 @@ function Numeric({
   value,
   onChange,
   placeholder,
+  title,
   min,
   max,
   required,
@@ -111,6 +118,7 @@ function Numeric({
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
+  title?: string;
   min?: number;
   max?: number;
   required?: boolean;
@@ -124,6 +132,7 @@ function Numeric({
       max={max}
       required={required}
       placeholder={placeholder}
+      title={title}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={`border border-border rounded px-2 py-1 text-ui-sm font-mono text-t1 bg-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 transition [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${className}`}

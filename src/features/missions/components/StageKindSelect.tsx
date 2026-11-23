@@ -25,7 +25,7 @@ export function StageKindSelect({
         className="appearance-none text-ui-sm pl-2.5 pr-7 py-1 rounded-md bg-white text-t1 border border-border hover:border-t3 focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
       >
         <option value="" disabled>
-          Choose a stage kind…
+          Select a stage type…
         </option>
         {ALL_KINDS.map((k) => (
           <option key={k} value={k}>

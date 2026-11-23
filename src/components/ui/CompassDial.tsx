@@ -1,4 +1,5 @@
 import { useRef, type PointerEvent } from "react";
+import { degreesToRadians, radiansToDegrees } from "@/lib/units";
 import { cn } from "@/lib/utils";
 
 interface CompassDialProps {
@@ -25,7 +26,7 @@ function bearingFromPointer(
   const dx = e.clientX - cx;
   const dy = e.clientY - cy;
   // Heading 0° = north (screen -y). Clockwise positive.
-  const deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  const deg = radiansToDegrees(Math.atan2(dx, -dy));
   return normalizeBearing(deg);
 }
 
@@ -41,7 +42,7 @@ export function CompassDial({
   const cy = size / 2;
 
   const ticks = [0, 90, 180, 270].map((deg) => {
-    const rad = ((deg - 90) * Math.PI) / 180;
+    const rad = degreesToRadians(deg - 90);
     return {
       deg,
       x1: cx + Math.cos(rad) * (r - 2),

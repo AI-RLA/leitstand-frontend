@@ -20,8 +20,9 @@ import {
   type NavigationStageDraft,
   type StageDraft,
   type StageKind,
+  thetaRadians,
 } from "./stageTypes";
-import type { WaypointDraft } from "./WaypointRow";
+import type { WaypointDraft, WaypointField } from "./WaypointRow";
 
 export interface MissionFormValues {
   name: string;
@@ -45,30 +46,55 @@ interface MissionFormProps {
 }
 
 function isEmptyWaypoint(w: WaypointDraft): boolean {
-  return !w.lat && !w.lon && !w.heading_deg && !w.x && !w.y && !w.theta;
+  return !w.lat && !w.lon && !w.heading_deg && !w.x && !w.y && !w.theta_deg;
 }
 
 function isValidNumber(v: string): boolean {
-  return v !== "" && !Number.isNaN(parseFloat(v));
+  return Number.isFinite(parseFloat(v));
 }
 
-function navigationValid(s: NavigationStageDraft): boolean {
-  if (s.waypoints.length === 0) return false;
-  if (s.frame === "wgs84") {
-    return s.waypoints.every(
-      (w) => isValidNumber(w.lat) && isValidNumber(w.lon),
-    );
+function emptyOrNumber(v: string): boolean {
+  return v === "" || isValidNumber(v);
+}
+
+function navigationProblem(
+  s: NavigationStageDraft,
+  stage: number,
+): string | null {
+  if (s.frame === "site_local" && s.site_id === "") {
+    return `Select a site for stage ${stage}`;
   }
-  return (
-    s.site_id !== "" &&
-    s.waypoints.every((w) => isValidNumber(w.x) && isValidNumber(w.y))
+  if (s.waypoints.length === 0) return `Add a waypoint to stage ${stage}`;
+  const complete = s.waypoints.every((w) =>
+    s.frame === "wgs84"
+      ? isValidNumber(w.lat) &&
+        isValidNumber(w.lon) &&
+        emptyOrNumber(w.heading_deg)
+      : isValidNumber(w.x) && isValidNumber(w.y) && emptyOrNumber(w.theta_deg),
   );
+  return complete ? null : `Fill in every waypoint of stage ${stage}`;
 }
 
 // A coverage draft can be saved only as it was last planned: the backend plans from the inputs,
 // so unplanned or edited inputs would store a path the operator never saw.
-function coverageSavable(s: CoverageStageDraft): boolean {
-  return s.planned !== null && !s.dirty;
+function coverageProblem(s: CoverageStageDraft, stage: number): string | null {
+  if (s.planned === null || s.dirty) return `Plan stage ${stage} before saving`;
+  const built = coverageInputs(s);
+  return "error" in built ? `${built.error} in stage ${stage}` : null;
+}
+
+/** Return the first thing that keeps the mission from being saved, in the order the page shows. */
+function saveBlocker(name: string, stages: StageDraft[]): string | null {
+  if (name.trim() === "") return "Enter a name";
+  if (stages.length === 0) return "Add a stage";
+  for (const [i, s] of stages.entries()) {
+    const problem =
+      s.kind === "coverage"
+        ? coverageProblem(s, i + 1)
+        : navigationProblem(s, i + 1);
+    if (problem) return problem;
+  }
+  return null;
 }
 
 function toStageInput(s: StageDraft): StageInput {
@@ -95,7 +121,7 @@ function toStageInput(s: StageDraft): StageInput {
             site_id: s.site_id,
             x: parseFloat(w.x),
             y: parseFloat(w.y),
-            theta: w.theta ? parseFloat(w.theta) : null,
+            theta: thetaRadians(w),
           })),
   };
 }
@@ -182,7 +208,7 @@ export function MissionForm({
   function updateWaypoint(
     si: number,
     wi: number,
-    field: keyof WaypointDraft,
+    field: WaypointField,
     value: string,
   ) {
     setStages((prev) =>
@@ -283,18 +309,11 @@ export function MissionForm({
     [addingIndex, sites],
   );
 
-  const unplanned = stages.some(
-    (s) => s.kind === "coverage" && !coverageSavable(s),
-  );
-  const canSubmit =
-    name.trim().length > 0 &&
-    stages.length > 0 &&
-    !unplanned &&
-    stages.every((s) => s.kind === "coverage" || navigationValid(s));
+  const blocker = saveBlocker(name, stages);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (blocker !== null) return;
     await onSubmit({
       name: name.trim(),
       description: description.trim() || null,
@@ -302,12 +321,6 @@ export function MissionForm({
       assignedRobotId: robotId,
     });
   }
-
-  const waypointCount = stages.reduce(
-    (sum, s) => sum + (s.kind === "navigation" ? s.waypoints.length : 0),
-    0,
-  );
-  const coverageCount = stages.filter((s) => s.kind === "coverage").length;
 
   return (
     <form
@@ -362,7 +375,6 @@ export function MissionForm({
             stages={stages}
             sites={sites}
             fields={fields}
-            robots={robots}
             addingIndex={addingIndex}
             onChangeCoverage={changeCoverage}
             onChangeStageFrame={setStageFrame}
@@ -380,39 +392,25 @@ export function MissionForm({
         </div>
 
         <div className="border-t border-border bg-white px-4 py-3 shrink-0 flex items-center justify-between gap-3">
-          <div className="text-ui-xs text-t3 tabular-nums">
+          <div className="text-ui-xs text-t3 tabular-nums shrink-0">
             <span className="font-semibold text-t2">{stages.length}</span> stage
             {stages.length === 1 ? "" : "s"}
-            <span className="mx-1.5">·</span>
-            <span className="font-semibold text-t2">{waypointCount}</span>{" "}
-            waypoint{waypointCount === 1 ? "" : "s"}
-            {coverageCount > 0 && (
-              <>
-                <span className="mx-1.5">·</span>
-                <span className="font-semibold text-t2">
-                  {coverageCount}
-                </span>{" "}
-                coverage
-              </>
-            )}
           </div>
-          <div className="flex items-center gap-2">
-            {unplanned && (
-              <span className="text-ui-xs text-t3">
-                Plan every coverage stage before saving
-              </span>
-            )}
+          <div className="flex items-center gap-2 min-w-0">
+            <span aria-live="polite" className="text-ui-xs text-t3 text-right">
+              {blocker}
+            </span>
             <button
               type="button"
               onClick={onCancel}
-              className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] transition-colors"
+              className="text-ui-sm text-t2 border border-border px-3 py-1.5 rounded-md hover:bg-[#F1F5F9] transition-colors shrink-0"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!canSubmit || isPending}
-              className="text-ui-sm bg-primary text-white px-4 py-1.5 rounded-md font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+              disabled={blocker !== null || isPending}
+              className="text-ui-sm bg-primary text-white px-4 py-1.5 rounded-md font-medium hover:opacity-90 disabled:opacity-50 transition-opacity shrink-0"
             >
               {isPending ? pendingLabel : submitLabel}
             </button>

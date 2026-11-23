@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from "react";
 import { Ban, Check, X } from "lucide-react";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { stageColors } from "@/components/ui/statusColors";
-import { formatArea } from "@/lib/units";
+import { formatArea, radiansToDegrees } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import { durationFromMs } from "@/lib/relativeTime";
 import { useFields } from "@/api/fields";
@@ -57,7 +57,10 @@ function waypointLabel(wp: StageViewModel["waypoints"][number]): string {
     const head = wp.heading_deg != null ? ` · ${wp.heading_deg}°` : "";
     return `${wp.lat}, ${wp.lon}${head}`;
   }
-  const theta = wp.theta != null ? ` · θ ${wp.theta}` : "";
+  const theta =
+    wp.theta != null
+      ? ` · θ ${Number(radiansToDegrees(wp.theta).toFixed(1))}°`
+      : "";
   return `${wp.site_id} · ${wp.x}, ${wp.y}${theta}`;
 }
 
@@ -328,9 +331,9 @@ function CoverageDetails({ coverage }: { coverage: CoverageProvenance }) {
         label="Working area"
         value={`${Math.round(metrics.covered_area_m2)} m² of ${Math.round(coverage.field_area_m2)} m²${share === null ? "" : ` (${share}%)`}`}
       />
-      <Row label="Implement width" value={`${params.operation_width_m} m`} />
+      <Row label="Working width" value={`${params.operation_width_m} m`} />
       <Row label="Turning radius" value={`${params.turning_radius_m} m`} />
-      <Row label="Headland" value={`${params.headland_width_m} m`} />
+      <Row label="Headland width" value={`${params.headland_width_m} m`} />
       {params.swath_angle_deg != null && (
         <Row
           label="Swath direction"
@@ -359,7 +362,7 @@ function CoverageDetails({ coverage }: { coverage: CoverageProvenance }) {
         value={
           coverage.planned_for_robot_id
             ? `from ${coverage.planned_for_robot_id}`
-            : "entered by hand"
+            : "manual entry"
         }
       />
       <Row
