@@ -46,8 +46,10 @@ interface MissionFormProps {
   onCancel: () => void;
 }
 
-function isEmptyWaypoint(w: WaypointDraft): boolean {
-  return !w.lat && !w.lon && !w.heading_deg && !w.x && !w.y && !w.theta_deg;
+function isEmptyWaypoint(w: WaypointDraft, frame: WaypointFrame): boolean {
+  return frame === "wgs84"
+    ? !w.lat && !w.lon && !w.heading_deg
+    : !w.x && !w.y && !w.theta_deg;
 }
 
 function isValidNumber(v: string): boolean {
@@ -193,12 +195,9 @@ export function MissionForm({
 
   function setStageFrame(si: number, frame: WaypointFrame) {
     setStages((prev) =>
-      updateNavigation(prev, si, (s) => ({
-        ...s,
-        frame,
-        site_id: "",
-        waypoints: [emptyWaypoint()],
-      })),
+      // Each waypoint holds both frames' fields and only the active frame's are saved, so the
+      // other frame's values are kept for switching back.
+      updateNavigation(prev, si, (s) => ({ ...s, frame })),
     );
     if (addingIndex === si) setAddingIndex(null);
   }
@@ -280,29 +279,26 @@ export function MissionForm({
         const stage = prev[stageIndex];
         if (!stage || stage.kind !== "navigation") return prev;
 
-        let next: WaypointDraft;
+        let picked: Partial<WaypointDraft>;
         if (stage.frame === "wgs84") {
-          next = {
-            ...emptyWaypoint(),
-            lat: lat.toFixed(6),
-            lon: lon.toFixed(6),
-          };
+          picked = { lat: lat.toFixed(6), lon: lon.toFixed(6) };
         } else {
           const site = sites.find((s) => s.site_id === stage.site_id);
           if (!site) return prev;
           const local = latLonToLocal(anchorFromSite(site), lat, lon);
-          next = {
-            ...emptyWaypoint(),
-            x: local.x.toFixed(3),
-            y: local.y.toFixed(3),
-          };
+          picked = { x: local.x.toFixed(3), y: local.y.toFixed(3) };
         }
 
-        const last = stage.waypoints[stage.waypoints.length - 1];
+        // The pick fills the first row still empty in this frame and keeps its other frame's values.
+        const empty = stage.waypoints.findIndex((w) =>
+          isEmptyWaypoint(w, stage.frame),
+        );
         const newWaypoints =
-          last && isEmptyWaypoint(last)
-            ? [...stage.waypoints.slice(0, -1), next]
-            : [...stage.waypoints, next];
+          empty >= 0
+            ? stage.waypoints.map((w, i) =>
+                i === empty ? { ...w, ...picked } : w,
+              )
+            : [...stage.waypoints, { ...emptyWaypoint(), ...picked }];
 
         return updateNavigation(prev, stageIndex, (s) => ({
           ...s,
